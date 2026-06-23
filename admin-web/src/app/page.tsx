@@ -87,9 +87,16 @@ export default function Dashboard() {
 
   // Get student link helper
   const getStudentLink = (postId: string) => {
-    const studentAppUrl = process.env.NEXT_PUBLIC_STUDENT_APP_URL || '';
+    let studentAppUrl = process.env.NEXT_PUBLIC_STUDENT_APP_URL || '';
+    
+    // Sanitize in case the user pasted the entire 'KEY=VALUE' line into Vercel
+    if (studentAppUrl.includes('=')) {
+      const parts = studentAppUrl.split('=');
+      studentAppUrl = parts[parts.length - 1];
+    }
+    
     if (studentAppUrl) {
-      return `${studentAppUrl.replace(/\/$/, '')}/post/${postId}`;
+      return `${studentAppUrl.trim().replace(/\/$/, '')}/post/${postId}`;
     }
     // Fallback if environment variable not set
     return `/post/${postId} (Cấu hình NEXT_PUBLIC_STUDENT_APP_URL)`;
