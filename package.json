@@ -1,0 +1,10 @@
+{
+  "name": "tao-web-tra-bai-hoc-vien-tools",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "import:posts": "python tools/telegram-sender/import_local.py",
+    "telegram:send": "python tools/telegram-sender/send.py",
+    "telegram:send:dry": "python tools/telegram-sender/send.py --dry-run"
+  }
+}

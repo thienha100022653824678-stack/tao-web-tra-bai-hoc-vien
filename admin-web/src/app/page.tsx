@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Copy, Check, Eye, Edit, Trash2, 
   BarChart3, LogOut, GraduationCap, X, Calendar, 
-  Laptop, RefreshCw, AlertCircle, FileText, Download
+  Laptop, RefreshCw, AlertCircle, FileText, Download, Upload
 } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -239,6 +239,9 @@ export default function Dashboard() {
           <p>Quản lý nội dung bài học, bài tập học viên và thống kê truy cập</p>
         </div>
         <div className={styles.headerActions}>
+          <Link href="/import" className={`${styles.btn} ${styles.btnSecondary}`}>
+            <Upload size={18} /> Import Excel
+          </Link>
           <Link href="/new" className={`${styles.btn} ${styles.btnPrimary}`}>
             <Plus size={18} /> Đăng bài mới
           </Link>
