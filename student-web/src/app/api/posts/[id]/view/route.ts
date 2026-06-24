@@ -60,7 +60,13 @@ export async function POST(
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const response = NextResponse.json({ success: true });
+    // DEBUG: Return all headers to see what Vercel sends
+    const allHeaders = Object.fromEntries(request.headers.entries());
+    const response = NextResponse.json({ 
+      success: true, 
+      debug_headers: allHeaders,
+      extracted: { country, city, ip, ua }
+    });
 
     // Set cookie for student session (persistent for 1 year)
     if (isNewSession) {
