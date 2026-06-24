@@ -9,10 +9,20 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Retrieve or generate a unique session ID
-    let sessionId = request.cookies.get('student-session-id')?.value;
-    let isNewSession = false;
+    // Retrieve sessionId from request body, fallback to cookies
+    let sessionId = '';
+    try {
+      const body = await request.json();
+      sessionId = body.sessionId || '';
+    } catch (e) {
+      // Ignore parser error (e.g. if request body is empty or not JSON)
+    }
 
+    if (!sessionId) {
+      sessionId = request.cookies.get('student-session-id')?.value || '';
+    }
+
+    let isNewSession = false;
     if (!sessionId) {
       sessionId = crypto.randomUUID();
       isNewSession = true;
@@ -63,7 +73,7 @@ export async function POST(
     const response = NextResponse.json({ success: true });
 
     // Set cookie for student session (persistent for 1 year)
-    if (isNewSession) {
+    if (isNewSession || !request.cookies.get('student-session-id')) {
       response.cookies.set('student-session-id', sessionId, {
         maxAge: 60 * 60 * 24 * 365, // 1 year
         httpOnly: true,

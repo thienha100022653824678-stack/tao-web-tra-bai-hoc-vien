@@ -7,8 +7,33 @@ import styles from './post.module.css';
 // 1. Client Component to track views on mount
 export function ViewTracker({ postId }: { postId: string }) {
   useEffect(() => {
+    // Generate UUID fallback
+    const generateUUID = () => {
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
+    // Get or create unique session ID in localStorage
+    let sessionId = localStorage.getItem('student-session-id');
+    if (!sessionId) {
+      sessionId = generateUUID();
+      localStorage.setItem('student-session-id', sessionId);
+    }
+
     // Record view asynchronously in the background
-    fetch(`/api/posts/${postId}/view`, { method: 'POST' })
+    fetch(`/api/posts/${postId}/view`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sessionId }),
+    })
       .then((res) => {
         if (!res.ok) console.warn('Failed to record view');
       })
