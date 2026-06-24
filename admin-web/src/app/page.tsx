@@ -275,15 +275,6 @@ export default function Dashboard() {
             <div className={styles.statValue}>{totalRawViews}</div>
           </div>
         </div>
-        <div className={`${styles.statCard} glass`}>
-          <div className={styles.statIcon}>
-            <Eye size={24} />
-          </div>
-          <div className={styles.statInfo}>
-            <h3>Số người xem duy nhất (theo IP)</h3>
-            <div className={styles.statValue}>{globalUniqueViews}</div>
-          </div>
-        </div>
       </section>
 
       {/* Content Area */}
