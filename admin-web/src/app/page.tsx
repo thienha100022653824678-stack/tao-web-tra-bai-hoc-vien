@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Plus, Search, Copy, Check, Eye, Edit, Trash2, 
   BarChart3, LogOut, GraduationCap, X, Calendar, 
-  Laptop, RefreshCw, AlertCircle, FileText
+  Laptop, RefreshCw, AlertCircle, FileText, Download
 } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -25,6 +25,8 @@ interface ViewLog {
   session_id: string;
   ip_address: string;
   user_agent: string;
+  country?: string;
+  city?: string;
   viewed_at: string;
 }
 
@@ -159,6 +161,44 @@ export default function Dashboard() {
     } finally {
       setLoadingLogs(false);
     }
+  };
+
+  const handleExportCSV = () => {
+    if (!selectedPost || viewLogs.length === 0) return;
+
+    const headers = ['Thời gian xem', 'Mã phiên (Session ID)', 'Địa chỉ IP', 'Quốc gia', 'Thành phố', 'Thiết bị/Trình duyệt'];
+    const rows = viewLogs.map(log => [
+      formatDate(log.viewed_at),
+      log.session_id,
+      log.ip_address,
+      log.country || 'Unknown',
+      log.city || 'Unknown',
+      log.user_agent.replace(/"/g, '""') // Escape quotes
+    ]);
+
+    // Use BOM \uFEFF to make sure Excel opens it as UTF-8 (Vietnamese characters supported)
+    const csvContent = "\uFEFF" + [
+      headers.join(','), 
+      ...rows.map(row => row.map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Sanitize title for filename
+    const safeTitle = selectedPost.title
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 30);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `thong_ke_luot_xem_${safeTitle}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('Đã xuất file CSV thành công!');
   };
 
   // Helper formatting values
@@ -384,7 +424,18 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Lịch sử lượt xem mới nhất</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1rem', margin: 0, color: 'var(--text-primary)' }}>Lịch sử lượt xem mới nhất</h3>
+                {viewLogs.length > 0 && (
+                  <button 
+                    onClick={handleExportCSV} 
+                    className={`${styles.btn} ${styles.btnSecondary}`}
+                    style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                  >
+                    <Download size={12} /> Xuất file CSV
+                  </button>
+                )}
+              </div>
               
               {loadingLogs ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -402,6 +453,7 @@ export default function Dashboard() {
                         <th className={styles.logTh}>Thời gian xem</th>
                         <th className={styles.logTh}>Mã thiết bị (Session)</th>
                         <th className={styles.logTh}>Địa chỉ IP</th>
+                        <th className={styles.logTh}>Khu vực (Vị trí)</th>
                         <th className={styles.logTh}>Hệ điều hành / Thiết bị</th>
                       </tr>
                     </thead>
@@ -413,6 +465,9 @@ export default function Dashboard() {
                             {log.session_id.substring(0, 8)}...{log.session_id.substring(log.session_id.length - 4)}
                           </td>
                           <td className={styles.logTd}>{log.ip_address}</td>
+                          <td className={styles.logTd}>
+                            {log.city && log.city !== 'Unknown' ? `${log.city}, ${log.country}` : log.country || 'Unknown'}
+                          </td>
                           <td className={styles.logTd} title={log.user_agent}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                               <Laptop size={12} style={{ color: 'var(--text-muted)' }} />

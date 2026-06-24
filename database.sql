@@ -3,6 +3,15 @@
 -- Copy and run this script in your Supabase SQL Editor (Dashboard > SQL Editor)
 -- =========================================================================
 
+-- =========================================================================
+-- MIGRATION GUIDE (IF DATABASE IS ALREADY CREATED):
+-- If you already have your database created, run ONLY these lines below:
+--
+-- alter table post_views add column if not exists country text;
+-- alter table post_views add column if not exists city text;
+-- (Then copy and run section 4 "record_view" function block below to update the function)
+-- =========================================================================
+
 -- 1. Create the posts table
 create table if not exists posts (
   id uuid default gen_random_uuid() primary key,
@@ -20,6 +29,8 @@ create table if not exists post_views (
   session_id text not null,        -- Client-side unique session identifier (cookie)
   ip_address text,                -- Client IP address (for anti-spam/analytics)
   user_agent text,                -- Client browser info
+  country text,                   -- Client country (detected by Vercel)
+  city text,                      -- Client city (detected by Vercel)
   viewed_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -32,7 +43,9 @@ create or replace function record_view(
   p_post_id uuid,
   p_session_id text,
   p_ip text,
-  p_ua text
+  p_ua text,
+  p_country text default null,
+  p_city text default null
 )
 returns void as $$
 declare
@@ -45,8 +58,8 @@ begin
 
   if last_view_time is null or last_view_time < now() - interval '10 minutes' then
     -- Record new view detail
-    insert into post_views (post_id, session_id, ip_address, user_agent)
-    values (p_post_id, p_session_id, p_ip, p_ua);
+    insert into post_views (post_id, session_id, ip_address, user_agent, country, city)
+    values (p_post_id, p_session_id, p_ip, p_ua, p_country, p_city);
 
     -- Update aggregate unique views in the posts table
     update posts

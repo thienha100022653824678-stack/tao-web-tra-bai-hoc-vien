@@ -32,12 +32,27 @@ export async function POST(
 
     const ua = request.headers.get('user-agent') || 'unknown';
 
+    // Retrieve geolocation headers from Vercel Edge Network
+    const country = request.headers.get('x-vercel-ip-country') || 'Unknown';
+    let city = request.headers.get('x-vercel-ip-city') || 'Unknown';
+    
+    // Decode Vercel's city header if it is URL encoded (e.g., Ho Chi Minh City)
+    try {
+      if (city && city !== 'Unknown') {
+        city = decodeURIComponent(city);
+      }
+    } catch (e) {
+      console.warn('Failed to decode city header:', e);
+    }
+
     // Call Supabase RPC record_view
     const { error } = await supabase.rpc('record_view', {
       p_post_id: id,
       p_session_id: sessionId,
       p_ip: ip,
-      p_ua: ua
+      p_ua: ua,
+      p_country: country,
+      p_city: city
     });
 
     if (error) {
