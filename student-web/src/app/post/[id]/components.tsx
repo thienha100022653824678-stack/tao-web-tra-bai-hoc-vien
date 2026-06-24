@@ -105,7 +105,92 @@ export function ImageGallery({ images }: { images: string[] }) {
   );
 }
 
-// 3. Helper to render custom formatted recipe text
+// 3. Helpers to parse links and render custom formatted recipe text
+function parseTextWithLinks(text: string) {
+  // Regex to match Markdown links: [Link Text](https://link.url)
+  const markdownRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = markdownRegex.exec(text)) !== null) {
+    const matchIndex = match.index;
+    
+    if (matchIndex > lastIndex) {
+      parts.push(...parsePlainUrls(text.substring(lastIndex, matchIndex)));
+    }
+
+    const linkText = match[1];
+    const linkUrl = match[2];
+    parts.push(
+      <a 
+        key={`md-link-${matchIndex}`} 
+        href={linkUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+      >
+        {linkText}
+      </a>
+    );
+
+    lastIndex = markdownRegex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(...parsePlainUrls(text.substring(lastIndex)));
+  }
+
+  return parts;
+}
+
+function parsePlainUrls(text: string): React.ReactNode[] {
+  // Regex to match plain HTTP/HTTPS URLs, avoiding brackets and parentheses
+  const urlRegex = /(https?:\/\/[^\s\[\]()]+)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    const matchIndex = match.index;
+
+    if (matchIndex > lastIndex) {
+      parts.push(text.substring(lastIndex, matchIndex));
+    }
+
+    const url = match[1];
+    // Clean trailing punctuation
+    let cleanedUrl = url;
+    let trailingText = '';
+    const trailingMatch = url.match(/[.,;:?!\])]+$/);
+    if (trailingMatch) {
+      cleanedUrl = url.substring(0, url.length - trailingMatch[0].length);
+      trailingText = trailingMatch[0];
+    }
+
+    parts.push(
+      <a 
+        key={`url-${matchIndex}`} 
+        href={cleanedUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+      >
+        {cleanedUrl}
+      </a>
+    );
+    if (trailingText) {
+      parts.push(trailingText);
+    }
+
+    lastIndex = urlRegex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts;
+}
+
 function RecipeRenderer({ content }: { content: string }) {
   const lines = content.split('\n');
   return (
@@ -113,18 +198,18 @@ function RecipeRenderer({ content }: { content: string }) {
       {lines.map((line, idx) => {
         // Headers
         if (line.startsWith('### ')) {
-          return <h4 key={idx}>{line.substring(4)}</h4>;
+          return <h4 key={idx}>{parseTextWithLinks(line.substring(4))}</h4>;
         }
         if (line.startsWith('## ')) {
-          return <h3 key={idx}>{line.substring(3)}</h3>;
+          return <h3 key={idx}>{parseTextWithLinks(line.substring(3))}</h3>;
         }
         if (line.startsWith('# ')) {
-          return <h2 key={idx}>{line.substring(2)}</h2>;
+          return <h2 key={idx}>{parseTextWithLinks(line.substring(2))}</h2>;
         }
         
         // Bullet points
         if (line.startsWith('- ') || line.startsWith('* ')) {
-          return <li key={idx} className={styles.recipeLi}>{line.substring(2)}</li>;
+          return <li key={idx} className={styles.recipeLi}>{parseTextWithLinks(line.substring(2))}</li>;
         }
         
         // Ordered lists
@@ -132,7 +217,7 @@ function RecipeRenderer({ content }: { content: string }) {
         if (match) {
           return (
             <li key={idx} className={styles.recipeOlLi}>
-              <span className={styles.olNumber}>{match[1]}.</span> {match[2]}
+              <span className={styles.olNumber}>{match[1]}.</span> {parseTextWithLinks(match[2])}
             </li>
           );
         }
@@ -143,7 +228,7 @@ function RecipeRenderer({ content }: { content: string }) {
         }
         
         // Standard paragraphs
-        return <p key={idx}>{line}</p>;
+        return <p key={idx}>{parseTextWithLinks(line)}</p>;
       })}
     </div>
   );

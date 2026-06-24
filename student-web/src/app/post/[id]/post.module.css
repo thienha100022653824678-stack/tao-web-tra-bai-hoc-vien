@@ -346,3 +346,17 @@
   background: var(--accent-hover);
   box-shadow: 0 5px 15px rgba(245, 158, 11, 0.3);
 }
+
+/* Kiểu hiển thị cho liên kết trong phần công thức */
+.recipeContent a {
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-all;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+.recipeContent a:hover {
+  color: var(--accent-hover);
+  opacity: 0.9;
+}
