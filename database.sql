@@ -38,7 +38,7 @@ create table if not exists post_views (
 create index if not exists idx_post_views_post_id on post_views(post_id);
 create index if not exists idx_post_views_session on post_views(post_id, session_id);
 
--- 4. Create the secure RPC function to record a view with anti-spam check (10-minute cooldown per session)
+-- 4. Create the secure RPC function to record a view with anti-spam check (10-minute cooldown per IP)
 create or replace function record_view(
   p_post_id uuid,
   p_session_id text,
@@ -51,20 +51,22 @@ returns void as $$
 declare
   last_view_time timestamp with time zone;
 begin
-  -- Check if this session viewed this post in the last 10 minutes
+  -- Check if this IP address viewed this post in the last 10 minutes
+  -- Using IP as the deduplication key ensures multiple windows/tabs
+  -- from the same device are NOT counted as separate unique viewers
   select max(viewed_at) into last_view_time
   from post_views
-  where post_id = p_post_id and session_id = p_session_id;
+  where post_id = p_post_id and ip_address = p_ip;
 
   if last_view_time is null or last_view_time < now() - interval '10 minutes' then
-    -- Record new view detail
+    -- Record new view detail (session_id still logged for reference in admin logs)
     insert into post_views (post_id, session_id, ip_address, user_agent, country, city)
     values (p_post_id, p_session_id, p_ip, p_ua, p_country, p_city);
 
-    -- Update aggregate unique views in the posts table
+    -- Update aggregate unique views in the posts table (count distinct IPs)
     update posts
     set views = (
-      select count(distinct session_id)
+      select count(distinct ip_address)
       from post_views
       where post_id = p_post_id
     )

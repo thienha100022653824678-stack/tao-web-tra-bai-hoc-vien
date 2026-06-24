@@ -273,7 +273,7 @@ export default function Dashboard() {
             <Eye size={24} />
           </div>
           <div className={styles.statInfo}>
-            <h3>Số người xem duy nhất</h3>
+            <h3>Số người xem duy nhất (theo IP)</h3>
             <div className={styles.statValue}>{totalUniqueViews}</div>
           </div>
         </div>
@@ -348,7 +348,7 @@ export default function Dashboard() {
                     <td className={styles.td}>
                       <div className={styles.viewsCol}>
                         <div className={styles.viewsDetail}>
-                          <span>Duy nhất: <strong>{post.unique_views}</strong></span>
+                          <span>IP duy nhất: <strong>{post.unique_views}</strong></span>
                           <span>Tổng cộng: {post.total_views}</span>
                         </div>
                       </div>
@@ -415,7 +415,7 @@ export default function Dashboard() {
             <div className={styles.modalBody}>
               <div className={styles.modalStats}>
                 <div className={styles.modalStatItem}>
-                  <label>Số người xem duy nhất (Sessions)</label>
+                  <label>Số người xem duy nhất (theo IP)</label>
                   <p>{selectedPost.unique_views}</p>
                 </div>
                 <div className={styles.modalStatItem}>
