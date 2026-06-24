@@ -159,7 +159,6 @@ export function RecipeCardWrapper({ title, recipe }: { title: string; recipe: st
     <div 
       className={`${styles.recipeCard} glass`}
       onCopy={preventCopy}
-      onSelectStart={(e) => e.preventDefault()}
     >
       <div className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>Công Thức & Hướng Dẫn</h3>
