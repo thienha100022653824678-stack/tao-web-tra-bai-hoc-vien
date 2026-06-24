@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [globalUniqueViews, setGlobalUniqueViews] = useState(0);
   
   // Modal State
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -54,6 +55,9 @@ export default function Dashboard() {
       const data = await res.json();
       if (res.ok && data.success) {
         setPosts(data.posts);
+        if (data.global_unique_views !== undefined) {
+          setGlobalUniqueViews(data.global_unique_views);
+        }
       } else {
         showToast('Lỗi khi tải danh sách bài tập');
       }
@@ -277,7 +281,7 @@ export default function Dashboard() {
           </div>
           <div className={styles.statInfo}>
             <h3>Số người xem duy nhất (theo IP)</h3>
-            <div className={styles.statValue}>{totalUniqueViews}</div>
+            <div className={styles.statValue}>{globalUniqueViews}</div>
           </div>
         </div>
       </section>
