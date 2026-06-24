@@ -182,6 +182,11 @@
 .recipeCard {
   border-radius: var(--border-radius);
   padding: 2rem;
+  /* Chặn sao chép công thức */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .cardHeader {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Check, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import styles from './post.module.css';
 
 // 1. Client Component to track views on mount
@@ -50,8 +50,8 @@ export function ImageGallery({ images }: { images: string[] }) {
   if (!images || images.length === 0) {
     return (
       <div className={styles.mainImageWrapper}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-          Không có hình ảnh
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>
+          Video/Hình ảnh sẽ được Update trong thời gian tới
         </div>
       </div>
     );
@@ -149,51 +149,23 @@ function RecipeRenderer({ content }: { content: string }) {
   );
 }
 
-// 4. Client Component for Recipe actions (Copy to clipboard & rendering)
+// 4. Client Component for Recipe actions (Copy protection & rendering)
 export function RecipeCardWrapper({ title, recipe }: { title: string; recipe: string }) {
-  const [copied, setCopied] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(`${title}\n\n${recipe}`);
-      setCopied(true);
-      setShowToast(true);
-    } catch (err) {
-      console.error('Failed to copy recipe:', err);
-    }
+  const preventCopy = (e: React.ClipboardEvent) => {
+    e.preventDefault();
   };
 
-  useEffect(() => {
-    if (showToast) {
-      const timer = setTimeout(() => {
-        setShowToast(false);
-        setCopied(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showToast]);
-
   return (
-    <>
-      <div className={`${styles.recipeCard} glass`}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>Công Thức & Hướng Dẫn</h3>
-          <button className={styles.copyButton} onClick={handleCopy}>
-            {copied ? <Check size={16} style={{ color: 'var(--accent-success)' }} /> : <Copy size={16} />}
-            {copied ? 'Đã sao chép' : 'Sao chép'}
-          </button>
-        </div>
-
-        <RecipeRenderer content={recipe} />
+    <div 
+      className={`${styles.recipeCard} glass`}
+      onCopy={preventCopy}
+      onSelectStart={(e) => e.preventDefault()}
+    >
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>Công Thức & Hướng Dẫn</h3>
       </div>
 
-      {showToast && (
-        <div className={styles.toast}>
-          <Check size={18} />
-          <span>Đã sao chép công thức vào bộ nhớ tạm!</span>
-        </div>
-      )}
-    </>
+      <RecipeRenderer content={recipe} />
+    </div>
   );
 }
