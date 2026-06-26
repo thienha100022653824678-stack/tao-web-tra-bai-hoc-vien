@@ -43,7 +43,88 @@ export function ViewTracker({ postId }: { postId: string }) {
   return null;
 }
 
-// 2. Client Component for Image Gallery
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lowerUrl = url.toLowerCase();
+  return (
+    lowerUrl.endsWith('.mp4') ||
+    lowerUrl.endsWith('.webm') ||
+    lowerUrl.endsWith('.ogg') ||
+    lowerUrl.includes('drive.google.com') ||
+    lowerUrl.includes('youtube.com') ||
+    lowerUrl.includes('youtu.be')
+  );
+}
+
+function renderMediaElement(url: string) {
+  if (!url) return null;
+  const lowerUrl = url.toLowerCase();
+  
+  if (lowerUrl.includes('drive.google.com')) {
+    let fileId = '';
+    let match = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+    if (match) fileId = match[1];
+    else {
+      match = url.match(/[?&]id=([^&#]+)/);
+      if (match) fileId = match[1];
+    }
+    
+    if (fileId) {
+      return (
+        <iframe
+          src={`https://drive.google.com/file/d/${fileId}/preview`}
+          className={styles.mainImage}
+          style={{ border: 'none', width: '100%', height: '100%', background: '#000' }}
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+        ></iframe>
+      );
+    }
+  }
+  
+  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
+    let videoId = '';
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      videoId = match[2];
+    }
+    
+    if (videoId) {
+      return (
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          className={styles.mainImage}
+          style={{ border: 'none', width: '100%', height: '100%', background: '#000' }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        ></iframe>
+      );
+    }
+  }
+  
+  if (lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.ogg') || lowerUrl.includes('/video/')) {
+    return (
+      <video
+        src={url}
+        controls
+        className={styles.mainImage}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+      />
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt="Media content"
+      className={styles.mainImage}
+    />
+  );
+}
+
+// 2. Client Component for Image/Video Gallery
 export function ImageGallery({ images }: { images: string[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -79,31 +160,47 @@ export function ImageGallery({ images }: { images: string[] }) {
           </>
         )}
         
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={images[activeIndex]}
-          alt={`Homework result ${activeIndex + 1}`}
-          className={styles.mainImage}
-        />
+        {renderMediaElement(images[activeIndex])}
       </div>
 
       {images.length > 1 && (
         <div className={styles.thumbnailContainer}>
-          {images.map((img, idx) => (
-            <div
-              key={idx}
-              className={`${styles.thumbnail} ${idx === activeIndex ? styles.activeThumbnail : ''}`}
-              onClick={() => setActiveIndex(idx)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img} alt={`Thumbnail ${idx + 1}`} className={styles.thumbnailImage} />
-            </div>
-          ))}
+          {images.map((img, idx) => {
+            const isVid = isVideoUrl(img);
+            return (
+              <div
+                key={idx}
+                className={`${styles.thumbnail} ${idx === activeIndex ? styles.activeThumbnail : ''}`}
+                onClick={() => setActiveIndex(idx)}
+                style={{ position: 'relative' }}
+              >
+                {isVid ? (
+                  <div style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    background: '#1f2937', 
+                    color: 'var(--accent)',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                  }}>
+                    PLAY VIDEO
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt={`Thumbnail ${idx + 1}`} className={styles.thumbnailImage} />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
 
 // 3. Helpers to parse links and render custom formatted recipe text
 function parseTextWithLinks(text: string) {

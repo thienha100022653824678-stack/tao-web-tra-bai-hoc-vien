@@ -1,8 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { ArrowLeft, Calendar, Eye, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
+import LoginClient from './login-client';
 import styles from './post.module.css';
 
 interface PostPageProps {
@@ -40,12 +43,61 @@ export default async function PostDetail({ params }: PostPageProps) {
     );
   }
 
+  // ── Gating Checks (Phân quyền khóa học phụ) ──
+  const courseSlug = post.course_slug;
+  let isAuthorized = true;
+  let sessionEmail = '';
+
+  if (courseSlug) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('course_session_token')?.value || '';
+    const session = verifyStudentSession(token);
+
+    if (!session) {
+      isAuthorized = false;
+    } else {
+      sessionEmail = session.email;
+      const isAdmin = isAdminEmail(sessionEmail);
+      if (!isAdmin) {
+        // Check active enrollment in Supabase for this course
+        const { data: enrollment } = await supabase
+          .from('student_enrollments')
+          .select('id, status')
+          .eq('email', sessionEmail)
+          .eq('course_slug', courseSlug)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (!enrollment) {
+          isAuthorized = false;
+        }
+      }
+    }
+  }
+
+  if (!isAuthorized) {
+    return (
+      <main className={styles.container}>
+        <LoginClient clientId={process.env.GOOGLE_CLIENT_ID || ''} email={sessionEmail || undefined} />
+      </main>
+    );
+  }
+
   // Format date
   const formattedDate = new Date(post.created_at).toLocaleDateString('vi-VN', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
+
+  // Construct media list (prepend hero_media_url to images)
+  const mediaList: string[] = [];
+  if (post.hero_media_url) {
+    mediaList.push(post.hero_media_url);
+  }
+  if (post.images && post.images.length > 0) {
+    mediaList.push(...post.images);
+  }
 
   return (
     <main className={styles.container}>
@@ -57,8 +109,8 @@ export default async function PostDetail({ params }: PostPageProps) {
       </Link>
 
       <div className={`${styles.grid} animate-fade-in`}>
-        {/* Left Column: Image Gallery */}
-        <ImageGallery images={post.images || []} />
+        {/* Left Column: Image/Video Gallery */}
+        <ImageGallery images={mediaList} />
 
         {/* Right Column: Title and Recipe details */}
         <div className={styles.infoSection}>
@@ -83,3 +135,4 @@ export default async function PostDetail({ params }: PostPageProps) {
     </main>
   );
 }
+
