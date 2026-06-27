@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { ArrowLeft, Calendar, Eye, AlertTriangle } from 'lucide-react';
+import crypto from 'crypto';
+import { ArrowLeft, Calendar, Eye, AlertTriangle, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
@@ -50,35 +51,62 @@ export default async function PostDetail({ params }: PostPageProps) {
 
   if (courseSlug) {
     const cookieStore = await cookies();
-    const token = cookieStore.get('course_session_token')?.value || '';
-    const session = verifyStudentSession(token);
+    
+    // 1. Bypass check if current user is System 1 Admin
+    const adminSession = cookieStore.get('admin-session')?.value;
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const hash = crypto.createHash('sha256').update(adminPassword).digest('hex');
+    const isAdmin = adminSession === hash;
 
-    if (!session) {
-      isAuthorized = false;
-    } else {
-      sessionEmail = session.email;
-      const isAdmin = isAdminEmail(sessionEmail);
-      if (!isAdmin) {
-        // Check active enrollment in Supabase for this course
-        const { data: enrollment } = await supabase
-          .from('student_enrollments')
-          .select('id, status')
-          .eq('email', sessionEmail)
-          .eq('course_slug', courseSlug)
-          .eq('status', 'active')
-          .maybeSingle();
+    if (!isAdmin) {
+      // 2. Validate student session
+      const token = cookieStore.get('course_session_token')?.value || '';
+      const session = verifyStudentSession(token);
 
-        if (!enrollment) {
-          isAuthorized = false;
+      if (!session) {
+        isAuthorized = false;
+      } else {
+        sessionEmail = session.email;
+        const isLmsAdmin = isAdminEmail(sessionEmail);
+        if (!isLmsAdmin) {
+          // Check active enrollment in Supabase for this course
+          const { data: enrollment } = await supabase
+            .from('student_enrollments')
+            .select('id, status')
+            .eq('email', sessionEmail)
+            .eq('course_slug', courseSlug)
+            .eq('status', 'active')
+            .maybeSingle();
+
+          if (!enrollment) {
+            isAuthorized = false;
+          }
         }
       }
     }
   }
 
   if (!isAuthorized) {
+    const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
     return (
       <main className={styles.container}>
-        <LoginClient clientId={process.env.GOOGLE_CLIENT_ID || ''} email={sessionEmail || undefined} />
+        <div className={`${styles.errorCard} glass animate-fade-in`}>
+          <Lock className={styles.errorIcon} size={64} style={{ color: 'var(--accent)' }} />
+          <h2 className={styles.errorTitle}>Nội Dung Bị Khóa</h2>
+          <p className={styles.errorText}>
+            {sessionEmail 
+              ? `Tài khoản Google (${sessionEmail}) chưa được duyệt cho khóa học này. Vui lòng liên hệ giảng viên hoặc đăng nhập tài khoản khác.`
+              : 'Vui lòng đăng nhập bằng tài khoản Google đã mua khóa học để xem nội dung bài học.'}
+          </p>
+          
+          <LoginClient clientId={googleClientId} email={sessionEmail || undefined} />
+
+          <div style={{ marginTop: '30px' }}>
+            <Link href="/" className={styles.homeButton}>
+              <ArrowLeft size={18} /> Quay về Trang chủ
+            </Link>
+          </div>
+        </div>
       </main>
     );
   }
