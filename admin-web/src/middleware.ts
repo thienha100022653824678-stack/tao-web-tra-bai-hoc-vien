@@ -27,9 +27,10 @@ export async function middleware(request: NextRequest) {
 
   const isLoginPage = pathname === '/login';
   const isAuthApi = pathname.startsWith('/api/auth');
+  const isSyncApi = pathname === '/api/sync' || pathname.startsWith('/api/sync');
 
   // If not authenticated and trying to access a protected page, redirect to login
-  if (!isAuthenticated && !isLoginPage && !isAuthApi) {
+  if (!isAuthenticated && !isLoginPage && !isAuthApi && !isSyncApi) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
