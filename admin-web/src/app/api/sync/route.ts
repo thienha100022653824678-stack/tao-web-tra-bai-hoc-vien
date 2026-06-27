@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase/)?.[1] || 'unknown';
+
     const body = await request.json();
     const { action, courseSlug, title, imageUrl, email } = body || {};
 
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
         }
 
-        return NextResponse.json({ success: true, postId: existingPost.id, updated: true });
+        return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
       } else {
         // Insert new post
         const { data: newPost, error: insertErr } = await supabaseAdmin
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
         }
 
-        return NextResponse.json({ success: true, postId: newPost.id, created: true });
+        return NextResponse.json({ success: true, postId: newPost.id, created: true, projectRef });
       }
     }
 
@@ -108,7 +111,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: upsertErr.message }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, enrollment });
+      return NextResponse.json({ success: true, enrollment, projectRef });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -132,10 +135,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: deleteErr.message }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, projectRef });
     }
 
-    return NextResponse.json({ success: false, error: 'Action không hợp lệ' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Action không hợp lệ', projectRef }, { status: 400 });
   } catch (err: any) {
     console.error('Sync POST handler error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
