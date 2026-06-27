@@ -2,11 +2,12 @@ import React from 'react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-import { ArrowLeft, Calendar, Eye, AlertTriangle, Lock } from 'lucide-react';
+import { ArrowLeft, Calendar, Eye, AlertTriangle, Lock, GraduationCap } from 'lucide-react';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
 import LoginClient from './login-client';
+import MarkAsViewed from './mark-viewed';
 import styles from './post.module.css';
 
 interface PostPageProps {
@@ -131,8 +132,11 @@ export default async function PostDetail({ params }: PostPageProps) {
           
           <LoginClient clientId={googleClientId} email={sessionEmail || undefined} />
 
-          <div style={{ marginTop: '30px' }}>
-            <Link href="/" className={styles.homeButton}>
+          <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+            <Link href="/my-courses" className={styles.homeButton} style={{ width: '100%', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', justifyContent: 'center' }}>
+              <GraduationCap size={18} /> Xem khóa học của tôi
+            </Link>
+            <Link href="/" className={styles.homeButton} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', justifyContent: 'center' }}>
               <ArrowLeft size={18} /> Quay về Trang chủ
             </Link>
           </div>
@@ -162,10 +166,16 @@ export default async function PostDetail({ params }: PostPageProps) {
     <main className={styles.container}>
       {/* ViewTracker to record view count on mount */}
       <ViewTracker postId={id} />
+      <MarkAsViewed postId={id} />
 
-      <Link href="/" className={styles.backButton}>
-        <ArrowLeft size={16} /> Quay lại cổng học viên
-      </Link>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <Link href="/" className={styles.backButton} style={{ marginBottom: 0 }}>
+          <ArrowLeft size={16} /> Quay lại cổng học viên
+        </Link>
+        <Link href="/my-courses" className={styles.backButton} style={{ marginBottom: 0, color: 'var(--accent)' }}>
+          <GraduationCap size={16} /> Khóa học của tôi
+        </Link>
+      </div>
 
       <div className={`${styles.grid} animate-fade-in`}>
         {/* Left Column: Image/Video Gallery */}
