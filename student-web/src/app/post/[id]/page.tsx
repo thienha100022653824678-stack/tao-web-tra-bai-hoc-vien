@@ -92,11 +92,12 @@ export default async function PostDetail({ params }: PostPageProps) {
 
   // Construct media list (prepend hero_media_url to images)
   const mediaList: string[] = [];
-  if (post.hero_media_url) {
-    mediaList.push(post.hero_media_url);
+  if (post.hero_media_url && post.hero_media_url.trim()) {
+    mediaList.push(post.hero_media_url.trim());
   }
   if (post.images && post.images.length > 0) {
-    mediaList.push(...post.images);
+    const cleanImages = post.images.map((img: any) => String(img || '').trim()).filter(Boolean);
+    mediaList.push(...cleanImages);
   }
 
   return (

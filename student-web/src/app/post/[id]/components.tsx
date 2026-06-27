@@ -219,16 +219,32 @@ function parseTextWithLinks(text: string) {
 
     const linkText = match[1];
     const linkUrl = match[2];
-    parts.push(
-      <a 
-        key={`md-link-${matchIndex}`} 
-        href={linkUrl} 
-        target="_blank" 
-        rel="noopener noreferrer"
-      >
-        {linkText}
-      </a>
-    );
+    
+    const isShopping = /shopee|lazada|tiki|amazon|tiktok\.com\/view\/product/i.test(linkUrl);
+    if (isShopping) {
+      parts.push(
+        <a 
+          key={`md-link-${matchIndex}`} 
+          href={linkUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={styles.recipeShopLink}
+        >
+          🛒 {linkText} ↗
+        </a>
+      );
+    } else {
+      parts.push(
+        <a 
+          key={`md-link-${matchIndex}`} 
+          href={linkUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          {linkText} ↗
+        </a>
+      );
+    }
 
     lastIndex = markdownRegex.lastIndex;
   }
@@ -241,8 +257,8 @@ function parseTextWithLinks(text: string) {
 }
 
 function parsePlainUrls(text: string): React.ReactNode[] {
-  // Regex to match plain HTTP/HTTPS URLs, avoiding brackets and parentheses
-  const urlRegex = /(https?:\/\/[^\s\[\]()]+)/g;
+  // Regex to match plain HTTP/HTTPS URLs and specific domains
+  const urlRegex = /(https?:\/\/[^\s\[\]()]+|www\.[^\s\[\]()]+|(?:facebook\.com|fb\.com|shopee\.vn|zalo\.me|tiktok\.com|lazada\.vn|tiki\.vn)\/[^\s\[\]()]*)/gi;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
@@ -255,7 +271,6 @@ function parsePlainUrls(text: string): React.ReactNode[] {
     }
 
     const url = match[1];
-    // Clean trailing punctuation
     let cleanedUrl = url;
     let trailingText = '';
     const trailingMatch = url.match(/[.,;:?!\])]+$/);
@@ -264,16 +279,39 @@ function parsePlainUrls(text: string): React.ReactNode[] {
       trailingText = trailingMatch[0];
     }
 
-    parts.push(
-      <a 
-        key={`url-${matchIndex}`} 
-        href={cleanedUrl} 
-        target="_blank" 
-        rel="noopener noreferrer"
-      >
-        {cleanedUrl}
-      </a>
-    );
+    let href = cleanedUrl;
+    if (/^www\./i.test(cleanedUrl)) {
+      href = "https://" + cleanedUrl;
+    } else if (!/^https?:\/\//i.test(cleanedUrl)) {
+      href = "https://" + cleanedUrl;
+    }
+
+    const isShopping = /shopee|lazada|tiki|amazon|tiktok\.com\/view\/product/i.test(cleanedUrl);
+    if (isShopping) {
+      parts.push(
+        <a 
+          key={`url-${matchIndex}`} 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={styles.recipeShopLink}
+        >
+          🛒 Mua nguyên liệu tại đây ↗
+        </a>
+      );
+    } else {
+      parts.push(
+        <a 
+          key={`url-${matchIndex}`} 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          {cleanedUrl} ↗
+        </a>
+      );
+    }
+
     if (trailingText) {
       parts.push(trailingText);
     }
@@ -293,39 +331,52 @@ function RecipeRenderer({ content }: { content: string }) {
   return (
     <div className={styles.recipeContent}>
       {lines.map((line, idx) => {
-        // Headers
-        if (line.startsWith('### ')) {
-          return <h4 key={idx}>{parseTextWithLinks(line.substring(4))}</h4>;
+        const trimmed = line.trim();
+        if (trimmed === '') {
+          return <div key={idx} className={styles.recipeSpacer}></div>;
         }
-        if (line.startsWith('## ')) {
-          return <h3 key={idx}>{parseTextWithLinks(line.substring(3))}</h3>;
+
+        // Check Markdown headings first
+        if (trimmed.startsWith('### ')) {
+          return <h4 key={idx}>{parseTextWithLinks(trimmed.substring(4))}</h4>;
         }
-        if (line.startsWith('# ')) {
-          return <h2 key={idx}>{parseTextWithLinks(line.substring(2))}</h2>;
+        if (trimmed.startsWith('## ')) {
+          return <h3 key={idx} className={styles.recipeHeading3}>{parseTextWithLinks(trimmed.substring(3))}</h3>;
         }
-        
-        // Bullet points
-        if (line.startsWith('- ') || line.startsWith('* ')) {
-          return <li key={idx} className={styles.recipeLi}>{parseTextWithLinks(line.substring(2))}</li>;
+        if (trimmed.startsWith('# ')) {
+          return <h3 key={idx} className={styles.recipeHeading3}>{parseTextWithLinks(trimmed.substring(2))}</h3>;
         }
-        
-        // Ordered lists
-        const match = line.match(/^(\d+)\.\s(.*)/);
-        if (match) {
+
+        // List items starting with -, *, •, +
+        if (/^[-*•+]\s+/.test(trimmed)) {
           return (
-            <li key={idx} className={styles.recipeOlLi}>
-              <span className={styles.olNumber}>{match[1]}.</span> {parseTextWithLinks(match[2])}
+            <li key={idx} className={styles.recipeLi}>
+              {parseTextWithLinks(trimmed.replace(/^[-*•+]\s+/, ""))}
             </li>
           );
         }
-        
-        // Empty lines
-        if (line.trim() === '') {
-          return <div key={idx} className={styles.recipeSpacer}></div>;
+
+        // Auto-heading checks: ends with colon, starts with heading keyword, or all uppercase
+        const endsWithColon = /:\s*$/.test(trimmed);
+        const startsWithHeadingWord = /^(Bài|Bước|Phần|Lưu ý|Công thức|Nguyên liệu|Sơ chế|Gia vị|Cách làm|Hướng dẫn)\s*\d*\s*:/i.test(trimmed);
+        const isAllUpperCase = trimmed.length <= 60 && !/[a-z]/.test(trimmed) && /[A-Z]/.test(trimmed);
+
+        if (startsWithHeadingWord || endsWithColon || isAllUpperCase) {
+          return <h3 key={idx} className={styles.recipeHeading3}>{parseTextWithLinks(trimmed)}</h3>;
         }
-        
-        // Standard paragraphs
-        return <p key={idx}>{parseTextWithLinks(line)}</p>;
+
+        // Ordered steps
+        const stepMatch = trimmed.match(/^(\d+)[\.)]\s+(.*)/);
+        if (stepMatch) {
+          return (
+            <li key={idx} className={styles.recipeOlLi}>
+              <span className={styles.olNumber}>{stepMatch[1]}.</span> {parseTextWithLinks(stepMatch[2])}
+            </li>
+          );
+        }
+
+        // Normal paragraph
+        return <p key={idx}>{parseTextWithLinks(trimmed)}</p>;
       })}
     </div>
   );
