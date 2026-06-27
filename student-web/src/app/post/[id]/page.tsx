@@ -122,7 +122,7 @@ export default async function PostDetail({ params }: PostPageProps) {
       <main className={styles.container}>
         <div className={`${styles.errorCard} glass animate-fade-in`}>
           <Lock className={styles.errorIcon} size={64} style={{ color: 'var(--accent)' }} />
-          <h2 className={styles.errorTitle}>Nội Dung Bị Khóa</h2>
+          <h2 className={styles.errorTitle}>Nội Dung Bảo Mật</h2>
           <p className={styles.errorText}>
             {sessionEmail 
               ? `Tài khoản Google (${sessionEmail}) chưa được duyệt cho khóa học này. Vui lòng liên hệ giảng viên hoặc đăng nhập tài khoản khác.`

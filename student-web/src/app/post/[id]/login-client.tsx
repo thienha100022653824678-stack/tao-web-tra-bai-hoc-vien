@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import styles from './post.module.css';
 
 interface LoginClientProps {
@@ -13,22 +13,7 @@ interface LoginClientProps {
 export default function LoginClient({ clientId, email }: LoginClientProps) {
   const router = useRouter();
   const googleBtnRef = useRef<HTMLDivElement>(null);
-  
   const [copied, setCopied] = React.useState(false);
-  const [os, setOs] = React.useState<'ios' | 'android' | 'other'>('other');
-  const [isInAppBrowser, setIsInAppBrowser] = React.useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const ua = navigator.userAgent;
-      const isIos = /iPhone|iPad|iPod/i.test(ua);
-      const isAndroid = /Android/i.test(ua);
-      setOs(isIos ? 'ios' : isAndroid ? 'android' : 'other');
-
-      const inApp = /zalo|fbav|fban|messenger|instagram|line|micromessenger/i.test(ua);
-      setIsInAppBrowser(inApp);
-    }
-  }, []);
 
   const handleCopy = () => {
     if (typeof window !== 'undefined') {
@@ -47,23 +32,6 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         });
-    }
-  };
-
-  const handleOpenBrowser = () => {
-    if (typeof window !== 'undefined') {
-      const currentUrl = window.location.href;
-      if (os === 'android') {
-        const cleanUrl = currentUrl.replace(/^https?:\/\//, '');
-        window.location.href = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;end`;
-      } else {
-        alert(
-          "Để mở bằng Safari:\n" +
-          "1. Bấm nút ⋯ (3 chấm) ở góc trên bên phải màn hình.\n" +
-          "2. Chọn 'Mở bằng trình duyệt' (hoặc 'Mở bằng Safari').\n\n" +
-          "Nếu không tự mở được, hãy bấm nút 'Copy link bài học' bên dưới rồi dán vào trình duyệt Safari."
-        );
-      }
     }
   };
 
@@ -128,22 +96,17 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
   };
 
   return (
-    <div className={styles.loginCard}>
-      <div className={styles.lockContainer}>
-        <Lock className={styles.lockIcon} size={48} />
-      </div>
-      <h2 className={styles.loginTitle}>Nội Dung Bảo Mật</h2>
-      
+    <div style={{ marginTop: '20px', width: '100%' }}>
       {email ? (
         <div className={styles.errorContent}>
           <p className={styles.loginText}>
-            Tài khoản Gmail <strong style={{ color: 'var(--accent)' }}>{email}</strong> của bạn chưa được cấp quyền truy cập khóa học phụ này.
+            Tài khoản Gmail <strong style={{ color: 'var(--accent)' }}>{email}</strong> của bạn chưa được cấp quyền truy cập khóa học này.
           </p>
-          <p className={styles.loginTextSub}>
-            Vui lòng liên hệ Admin để kiểm tra quyền học hoặc đăng nhập bằng tài khoản khác bên dưới.
+          <p className={styles.loginTextSub} style={{ marginBottom: '15px' }}>
+            Vui lòng liên hệ Admin hoặc đăng nhập bằng tài khoản khác bên dưới.
           </p>
           
-          <div className={styles.actionGroup}>
+          <div className={styles.actionGroup} style={{ marginTop: '10px' }}>
             <div ref={googleBtnRef} className={styles.googleBtn}></div>
             <button onClick={handleLogout} className={styles.logoutButton}>
               <LogOut size={16} /> Đăng xuất tài khoản
@@ -151,43 +114,23 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
           </div>
         </div>
       ) : (
-        <div>
-          <p className={styles.loginText}>
-            Khóa học phụ này yêu cầu đăng nhập và phân quyền học viên từ hệ thống chính.
-          </p>
-          <p className={styles.loginTextSub}>
-            Vui lòng đăng nhập bằng tài khoản Gmail đã đăng ký mua khóa học để tiếp tục xem nội dung.
-          </p>
-          <div className={styles.googleBtnCenter}>
-            <div ref={googleBtnRef}></div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+          <div ref={googleBtnRef}></div>
         </div>
       )}
 
-      {/* Trình duyệt in-app / Hướng dẫn cho người lớn tuổi */}
-      <div className={styles.browserHelperContainer}>
-        <div className={styles.helperHeader}>
-          <span className={styles.helperWarningIcon}>⚠️</span>
-          <strong>Bạn đang mở bài học từ Zalo / Facebook?</strong>
+      {/* Trình duyệt in-app / Hướng dẫn đơn giản cho người cao tuổi */}
+      <div className={styles.browserHelperContainer} style={{ marginTop: '25px' }}>
+        <div className={styles.helperHeader} style={{ fontSize: '0.9rem', marginBottom: '6px' }}>
+          <strong>💡 Hướng dẫn mở nhanh trên điện thoại:</strong>
         </div>
-        <p className={styles.helperText}>
-          Trình duyệt của Zalo/Facebook không hỗ trợ đăng nhập Gmail bảo mật. Hãy mở bài bằng Safari hoặc Chrome để xem bài:
+        <p className={styles.helperText} style={{ fontSize: '0.85rem', color: '#9ca3af', marginBottom: '12px' }}>
+          Bấm dấu <strong>⋯</strong> (ở góc trên cùng bên phải) → Chọn <strong>"Mở bằng trình duyệt"</strong> (hoặc <strong>"Open in browser"</strong> / <strong>"Mở bằng Safari"</strong>).
         </p>
         
-        <div className={styles.helperButtons}>
-          <button onClick={handleOpenBrowser} className={styles.primaryHelperBtn}>
-            {os === 'ios' ? 'Mở bằng Safari' : os === 'android' ? 'Mở bằng Chrome' : 'Mở bằng trình duyệt ngoài'}
-          </button>
-          
-          <button onClick={handleCopy} className={styles.secondaryHelperBtn}>
-            {copied ? '✅ Đã copy link!' : '📋 Copy link bài học'}
-          </button>
-        </div>
-
-        <div className={styles.helperGuide}>
-          <p><strong>Hướng dẫn mở nhanh:</strong> Bấm dấu <strong>⋯</strong> (ở góc trên cùng bên phải) → Chọn <strong>"Mở bằng trình duyệt"</strong> (hoặc <strong>"Open in browser"</strong> / <strong>"Mở bằng Safari"</strong>).</p>
-          <p style={{ marginTop: '5px' }}>Nếu nút không tự mở được, hãy bấm nút <strong>Copy link bài học</strong> ở trên rồi mở Safari/Chrome trên máy và dán vào thanh địa chỉ.</p>
-        </div>
+        <button onClick={handleCopy} className={styles.secondaryHelperBtn} style={{ width: '100%', padding: '0.65rem' }}>
+          {copied ? '✅ Đã copy link!' : '📋 Copy link bài học'}
+        </button>
       </div>
     </div>
   );
