@@ -189,12 +189,29 @@ export default async function PostDetail({ params }: PostPageProps) {
                 <Calendar size={16} style={{ color: 'var(--accent)' }} />
                 <span>{formattedDate}</span>
               </div>
-              <div className={`${styles.metaItem} ${styles.viewsBadge}`}>
-                <Eye size={16} />
-                <span>{post.views} lượt xem</span>
-              </div>
+              {/* Chỉ hiển thị badge lượt xem nếu course_slug là NULL (bài public) */}
+              {!courseSlug && (
+                <div className={`${styles.metaItem} ${styles.viewsBadge}`}>
+                  <Eye size={16} />
+                  <span>{post.views} lượt xem</span>
+                </div>
+              )}
             </div>
-            <h1 className={styles.title}>{post.title}</h1>
+            <h1 className={styles.title} style={{ marginBottom: courseSlug && post.lms_course_slug && post.lms_course_slug.trim() ? '0.75rem' : '0' }}>{post.title}</h1>
+            
+            {/* Hiển thị nút bài học gốc LMS nếu có mapping */}
+            {courseSlug && post.lms_course_slug && post.lms_course_slug.trim() && (
+              <div className={styles.lmsLinkContainer}>
+                <a 
+                  href={`https://www.daubepnho.store/lms.html?course=${post.lms_course_slug.trim()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.lmsLinkButton}
+                >
+                  <GraduationCap size={16} /> Bài học gốc phục vụ giảng dạy
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Recipe Card */}

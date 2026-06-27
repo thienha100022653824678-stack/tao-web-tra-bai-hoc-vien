@@ -789,3 +789,30 @@
   margin: 0;
 }
 
+/* LMS Redirect Button styling */
+.lmsLinkContainer {
+  margin-top: 1rem;
+  display: flex;
+}
+
+.lmsLinkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff !important;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none !important;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.lmsLinkButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+  opacity: 0.95;
+}
+
