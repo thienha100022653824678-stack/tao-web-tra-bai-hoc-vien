@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { ArrowLeft, Calendar, Eye, AlertTriangle, Lock } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
 import LoginClient from './login-client';
@@ -90,11 +90,11 @@ export default async function PostDetail({ params }: PostPageProps) {
         const isLmsAdmin = isAdminEmail(sessionEmail);
         if (!isLmsAdmin) {
           // Check active enrollment in Supabase for this course
-          const { data: enrollment } = await supabase
+          const { data: enrollment } = await supabaseAdmin
             .from('student_enrollments')
             .select('id, status')
-            .eq('email', sessionEmail)
-            .eq('course_slug', courseSlug)
+            .eq('email', sessionEmail.trim().toLowerCase())
+            .eq('course_slug', courseSlug.trim())
             .eq('status', 'active')
             .maybeSingle();
 
