@@ -197,13 +197,13 @@ export default async function PostDetail({ params }: PostPageProps) {
                 </div>
               )}
             </div>
-            <h1 className={styles.title} style={{ marginBottom: courseSlug && post.lms_course_slug && post.lms_course_slug.trim() ? '0.75rem' : '0' }}>{post.title}</h1>
+            <h1 className={styles.title} style={{ marginBottom: courseSlug ? '0.75rem' : '0' }}>{post.title}</h1>
             
-            {/* Hiển thị nút bài học gốc LMS nếu có mapping */}
-            {courseSlug && post.lms_course_slug && post.lms_course_slug.trim() && (
+            {/* Hiển thị nút bài học gốc LMS nếu có course_slug */}
+            {courseSlug && (
               <div className={styles.lmsLinkContainer}>
                 <a 
-                  href={`https://www.daubepnho.store/lms.html?course=${post.lms_course_slug.trim()}`}
+                  href={`https://www.daubepnho.store/lms.html?course=${courseSlug.trim()}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.lmsLinkButton}
