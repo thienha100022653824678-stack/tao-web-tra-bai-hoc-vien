@@ -13,6 +13,59 @@ interface LoginClientProps {
 export default function LoginClient({ clientId, email }: LoginClientProps) {
   const router = useRouter();
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  
+  const [copied, setCopied] = React.useState(false);
+  const [os, setOs] = React.useState<'ios' | 'android' | 'other'>('other');
+  const [isInAppBrowser, setIsInAppBrowser] = React.useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ua = navigator.userAgent;
+      const isIos = /iPhone|iPad|iPod/i.test(ua);
+      const isAndroid = /Android/i.test(ua);
+      setOs(isIos ? 'ios' : isAndroid ? 'android' : 'other');
+
+      const inApp = /zalo|fbav|fban|messenger|instagram|line|micromessenger/i.test(ua);
+      setIsInAppBrowser(inApp);
+    }
+  }, []);
+
+  const handleCopy = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {
+          const el = document.createElement('textarea');
+          el.value = window.location.href;
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        });
+    }
+  };
+
+  const handleOpenBrowser = () => {
+    if (typeof window !== 'undefined') {
+      const currentUrl = window.location.href;
+      if (os === 'android') {
+        const cleanUrl = currentUrl.replace(/^https?:\/\//, '');
+        window.location.href = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;end`;
+      } else {
+        alert(
+          "Để mở bằng Safari:\n" +
+          "1. Bấm nút ⋯ (3 chấm) ở góc trên bên phải màn hình.\n" +
+          "2. Chọn 'Mở bằng trình duyệt' (hoặc 'Mở bằng Safari').\n\n" +
+          "Nếu không tự mở được, hãy bấm nút 'Copy link bài học' bên dưới rồi dán vào trình duyệt Safari."
+        );
+      }
+    }
+  };
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -110,6 +163,32 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
           </div>
         </div>
       )}
+
+      {/* Trình duyệt in-app / Hướng dẫn cho người lớn tuổi */}
+      <div className={styles.browserHelperContainer}>
+        <div className={styles.helperHeader}>
+          <span className={styles.helperWarningIcon}>⚠️</span>
+          <strong>Bạn đang mở bài học từ Zalo / Facebook?</strong>
+        </div>
+        <p className={styles.helperText}>
+          Trình duyệt của Zalo/Facebook không hỗ trợ đăng nhập Gmail bảo mật. Hãy mở bài bằng Safari hoặc Chrome để xem bài:
+        </p>
+        
+        <div className={styles.helperButtons}>
+          <button onClick={handleOpenBrowser} className={styles.primaryHelperBtn}>
+            {os === 'ios' ? 'Mở bằng Safari' : os === 'android' ? 'Mở bằng Chrome' : 'Mở bằng trình duyệt ngoài'}
+          </button>
+          
+          <button onClick={handleCopy} className={styles.secondaryHelperBtn}>
+            {copied ? '✅ Đã copy link!' : '📋 Copy link bài học'}
+          </button>
+        </div>
+
+        <div className={styles.helperGuide}>
+          <p><strong>Hướng dẫn mở nhanh:</strong> Bấm dấu <strong>⋯</strong> (ở góc trên cùng bên phải) → Chọn <strong>"Mở bằng trình duyệt"</strong> (hoặc <strong>"Open in browser"</strong> / <strong>"Mở bằng Safari"</strong>).</p>
+          <p style={{ marginTop: '5px' }}>Nếu nút không tự mở được, hãy bấm nút <strong>Copy link bài học</strong> ở trên rồi mở Safari/Chrome trên máy và dán vào thanh địa chỉ.</p>
+        </div>
+      </div>
     </div>
   );
 }
