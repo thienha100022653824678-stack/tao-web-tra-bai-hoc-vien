@@ -44,6 +44,14 @@ export default async function PostDetail({ params }: PostPageProps) {
     );
   }
 
+  console.log('STUDENT_WEB_SYNC_DEBUG:', {
+    postId: id,
+    postTitle: post?.title,
+    postCourseSlug: post?.course_slug,
+    hasPost: !!post,
+    fetchError: error
+  });
+
   // ── Gating Checks (Phân quyền khóa học phụ) ──
   const courseSlug = post.course_slug;
   let isAuthorized = true;
@@ -58,10 +66,22 @@ export default async function PostDetail({ params }: PostPageProps) {
     const hash = crypto.createHash('sha256').update(adminPassword).digest('hex');
     const isAdmin = adminSession === hash;
 
+    console.log('STUDENT_WEB_GATING_CHECK_START:', {
+      courseSlug,
+      isAdmin,
+      adminSessionLength: adminSession ? adminSession.length : 0
+    });
+
     if (!isAdmin) {
       // 2. Validate student session
       const token = cookieStore.get('course_session_token')?.value || '';
       const session = verifyStudentSession(token);
+
+      console.log('STUDENT_WEB_SESSION_VAL:', {
+        hasToken: !!token,
+        hasSession: !!session,
+        sessionEmail: session?.email
+      });
 
       if (!session) {
         isAuthorized = false;
@@ -78,6 +98,11 @@ export default async function PostDetail({ params }: PostPageProps) {
             .eq('status', 'active')
             .maybeSingle();
 
+          console.log('STUDENT_WEB_ENROLLMENT_VAL:', {
+            hasEnrollment: !!enrollment,
+            enrollmentStatus: enrollment?.status
+          });
+
           if (!enrollment) {
             isAuthorized = false;
           }
@@ -85,6 +110,11 @@ export default async function PostDetail({ params }: PostPageProps) {
       }
     }
   }
+
+  console.log('STUDENT_WEB_GATING_CHECK_END:', {
+    isAuthorized,
+    sessionEmail
+  });
 
   if (!isAuthorized) {
     const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
