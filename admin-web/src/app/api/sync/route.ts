@@ -138,6 +138,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, projectRef });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. SYNC RECIPE (Đồng bộ công thức từ bài học LMS sang bài viết tương ứng)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'syncRecipe') {
+      const { courseSlug, recipe, title } = body || {};
+      if (!courseSlug) {
+        return NextResponse.json({ success: false, error: 'Thiếu courseSlug' }, { status: 400 });
+      }
+
+      // Check if a post mapped to this course slug already exists
+      const { data: existingPost, error: fetchErr } = await supabaseAdmin
+        .from('posts')
+        .select('id')
+        .eq('course_slug', courseSlug.trim())
+        .maybeSingle();
+
+      if (fetchErr) {
+        console.error('Error fetching post during recipe sync:', fetchErr);
+        return NextResponse.json({ success: false, error: fetchErr.message }, { status: 500 });
+      }
+
+      if (existingPost) {
+        // Update recipe and optionally title
+        const updatePayload: any = {
+          recipe: recipe || '',
+          updated_at: new Date().toISOString()
+        };
+        if (title) updatePayload.title = title.trim();
+
+        const { error: updateErr } = await supabaseAdmin
+          .from('posts')
+          .update(updatePayload)
+          .eq('id', existingPost.id);
+
+        if (updateErr) {
+          console.error('Error updating post recipe during sync:', updateErr);
+          return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
+      } else {
+        // Insert new post
+        const { data: newPost, error: insertErr } = await supabaseAdmin
+          .from('posts')
+          .insert({
+            title: (title || 'Bài học mới').trim(),
+            recipe: recipe || '',
+            images: [],
+            views: 0,
+            course_slug: courseSlug.trim(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (insertErr) {
+          console.error('Error inserting new post during recipe sync:', insertErr);
+          return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, postId: newPost.id, created: true, projectRef });
+      }
+    }
+
     return NextResponse.json({ success: false, error: 'Action không hợp lệ', projectRef }, { status: 400 });
   } catch (err: any) {
     console.error('Sync POST handler error:', err);
