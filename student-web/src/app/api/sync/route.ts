@@ -162,8 +162,7 @@ export async function POST(request: NextRequest) {
       if (existingPost) {
         // Update recipe and optionally title
         const updatePayload: any = {
-          recipe: recipe || '',
-          updated_at: new Date().toISOString()
+          recipe: recipe || ''
         };
         if (title) updatePayload.title = title.trim();
 
@@ -188,8 +187,7 @@ export async function POST(request: NextRequest) {
             images: [],
             views: 0,
             course_slug: courseSlug.trim(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            created_at: new Date().toISOString()
           })
           .select('id')
           .single();
