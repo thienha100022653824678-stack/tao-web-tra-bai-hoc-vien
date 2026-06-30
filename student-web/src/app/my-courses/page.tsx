@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { verifyStudentSession } from '@/lib/session';
 import { getMyCourses } from '@/lib/my-courses';
+
+export const dynamic = 'force-dynamic';
 import LoginMyCourses from './login-my-courses';
 import MyCoursesClient from './my-courses-client';
 import styles from '../post/[id]/post.module.css';
