@@ -209,8 +209,7 @@ export async function POST(request: NextRequest) {
           .update({
             status: targetStatus,
             title: title ? title.trim() : undefined,
-            images: imageUrl ? [imageUrl.trim()] : undefined,
-            updated_at: new Date().toISOString()
+            images: imageUrl ? [imageUrl.trim()] : undefined
           })
           .eq('id', postId);
 
