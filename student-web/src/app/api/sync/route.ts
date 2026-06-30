@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       // Check if a post mapped to this course slug already exists
       const { data: existingPost, error: fetchErr } = await supabaseAdmin
         .from('posts')
-        .select('id')
+        .select('id, recipe, title')
         .eq('course_slug', courseSlug.trim())
         .maybeSingle();
 
@@ -166,6 +166,13 @@ export async function POST(request: NextRequest) {
         };
         if (title) updatePayload.title = title.trim();
 
+        // Check transition from waiting (placeholder) to ready (actual recipe)
+        const isPreviousPlaceholder = !existingPost.recipe || 
+          existingPost.recipe.includes('Nội dung bài viết sẽ sớm được cập nhật');
+        const isNewRecipeReady = recipe && 
+          !recipe.includes('Nội dung bài viết sẽ sớm được cập nhật') && 
+          recipe.trim() !== '';
+
         const { error: updateErr } = await supabaseAdmin
           .from('posts')
           .update(updatePayload)
@@ -174,6 +181,11 @@ export async function POST(request: NextRequest) {
         if (updateErr) {
           console.error('Error updating post recipe during sync:', updateErr);
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+        }
+
+        // Trigger email number 2 if transitioned to ready
+        if (isPreviousPlaceholder && isNewRecipeReady) {
+          triggerCourseReadyEmails(courseSlug.trim(), title || existingPost.title || courseSlug.trim()).catch(console.error);
         }
 
         return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
@@ -197,6 +209,15 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
         }
 
+        // Trigger email if created with a real recipe directly
+        const isNewRecipeReady = recipe && 
+          !recipe.includes('Nội dung bài viết sẽ sớm được cập nhật') && 
+          recipe.trim() !== '';
+          
+        if (isNewRecipeReady) {
+          triggerCourseReadyEmails(courseSlug.trim(), title || courseSlug.trim()).catch(console.error);
+        }
+
         return NextResponse.json({ success: true, postId: newPost.id, created: true, projectRef });
       }
     }
@@ -205,5 +226,44 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     console.error('Sync POST handler error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EMAIL NOTIFICATION HOOKS & HELPERS (GIAI ĐOẠN 20)
+// ─────────────────────────────────────────────────────────────────────────
+
+async function sendCourseReadyEmail(email: string, courseName: string) {
+  console.log(`[Email Hook - TODO] Gửi email số 2 hoàn tất nội dung đến ${email} cho khóa ${courseName}`);
+  
+  // TODO: Cấu hình SMTP / Resend / Gmail API tại đây để gửi email thực tế
+  // Ví dụ sử dụng Resend:
+  // const resend = new Resend(process.env.RESEND_API_KEY);
+  // await resend.emails.send({
+  //   from: 'Culinary Academy <academy@yeunauan.live>',
+  //   to: email,
+  //   subject: `Khóa học ${courseName} đã hoàn tất nội dung`,
+  //   html: `<p>Khóa học <strong>${courseName}</strong> đã hoàn tất nội dung.</p>
+  //          <p>Bạn có thể vào học ngay tại: <a href="https://yeunauan.live/my-courses">https://yeunauan.live/my-courses</a></p>`
+  // });
+}
+
+async function triggerCourseReadyEmails(courseSlug: string, courseTitle: string) {
+  try {
+    const { data: enrollments } = await supabaseAdmin
+      .from('student_enrollments')
+      .select('email')
+      .eq('course_slug', courseSlug)
+      .eq('status', 'active');
+
+    if (enrollments && enrollments.length > 0) {
+      for (const enroll of enrollments) {
+        if (enroll.email) {
+          await sendCourseReadyEmail(enroll.email.trim().toLowerCase(), courseTitle);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to trigger course ready emails:', err);
   }
 }
