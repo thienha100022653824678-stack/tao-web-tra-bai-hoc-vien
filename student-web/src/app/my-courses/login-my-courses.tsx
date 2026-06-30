@@ -151,12 +151,9 @@ export default function LoginMyCourses({ clientId }: LoginMyCoursesProps) {
         {isInAppIOS ? (
           <div>
             <div style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>🔒</div>
-            <h2 className={styles.loginTitle} style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 800 }}>
-              Nội dung khóa học cần mở bằng Safari
+            <h2 className={styles.loginTitle} style={{ fontSize: '1.25rem', marginBottom: '1.5rem', fontWeight: 800 }}>
+              Bạn đã thanh toán thành công, tiếp tục mở mục Quản lý khóa học để xem
             </h2>
-            <p className={styles.loginText} style={{ fontSize: '0.9rem', color: '#9ca3af', marginBottom: '1.5rem', lineHeight: '1.5' }}>
-              Bạn đang mở link trong Zalo/Facebook. Vui lòng mở bằng Safari hoặc trình duyệt ngoài để đăng nhập Gmail.
-            </p>
           </div>
         ) : (
           <div>
@@ -180,17 +177,14 @@ export default function LoginMyCourses({ clientId }: LoginMyCoursesProps) {
             💡 Đang mở trong Zalo/Facebook?
           </div>
           {isInAppIOS ? (
-            <p style={{ fontSize: '0.85rem', color: '#9ca3af', lineHeight: '1.45', marginBottom: '12px' }}>
+            <p style={{ fontSize: '0.85rem', color: '#9ca3af', lineHeight: '1.45', marginBottom: '4px' }}>
               Bấm dấu <strong style={{ color: '#fff' }}>⋯</strong> ở góc trên bên phải → chọn <strong style={{ color: '#fff' }}>“Mở bằng Safari”</strong> hoặc <strong style={{ color: '#fff' }}>“Mở bằng trình duyệt”</strong> để đăng nhập Gmail.
             </p>
           ) : (
-            <p style={{ fontSize: '0.85rem', color: '#9ca3af', lineHeight: '1.45', marginBottom: '12px' }}>
+            <p style={{ fontSize: '0.85rem', color: '#9ca3af', lineHeight: '1.45', marginBottom: '4px' }}>
               Bấm dấu <strong style={{ color: '#fff' }}>⋯</strong> ở góc trên bên phải → chọn <strong style={{ color: '#fff' }}>“Mở bằng trình duyệt”</strong> hoặc <strong style={{ color: '#fff' }}>“Open in browser”</strong>.
             </p>
           )}
-          <button onClick={handleCopy} className={styles.secondaryHelperBtn} style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600 }}>
-            {copied ? '✅ Đã copy link!' : '📋 Copy link bài học'}
-          </button>
         </div>
 
         {/* Auxiliary Nav Links */}
