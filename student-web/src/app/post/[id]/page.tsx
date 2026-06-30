@@ -96,7 +96,7 @@ export default async function PostDetail({ params }: PostPageProps) {
             .select('id, status')
             .eq('email', sessionEmail.trim().toLowerCase())
             .eq('course_slug', courseSlug.trim())
-            .eq('status', 'active')
+            .in('status', ['approved_ready', 'approved_waiting_content', 'active'])
             .maybeSingle();
 
           console.log('STUDENT_WEB_ENROLLMENT_VAL:', {

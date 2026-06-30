@@ -94,12 +94,22 @@ export async function POST(request: NextRequest) {
 
       const cleanEmail = email.toLowerCase().trim();
 
+      // Determine course readiness status from posts table
+      const { data: post } = await supabaseAdmin
+        .from('posts')
+        .select('status')
+        .eq('course_slug', courseSlug.trim())
+        .maybeSingle();
+
+      const isReady = post ? (post.status === 'ready' || post.status === 'active' || !post.status) : false;
+      const targetStatus = isReady ? 'approved_ready' : 'approved_waiting_content';
+
       const { data: enrollment, error: upsertErr } = await supabaseAdmin
         .from('student_enrollments')
         .upsert({
           email: cleanEmail,
           course_slug: courseSlug.trim(),
-          status: 'active',
+          status: targetStatus,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'email,course_slug'
@@ -119,6 +129,7 @@ export async function POST(request: NextRequest) {
     // 2.5 SYNC PENDING ORDER (Đồng bộ đơn hàng chờ duyệt sang Portal)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'syncPendingOrder') {
+      const { courseName, thumbnail } = body || {};
       if (!email || !courseSlug) {
         return NextResponse.json({ success: false, error: 'Thiếu email hoặc courseSlug' }, { status: 400 });
       }
@@ -130,6 +141,8 @@ export async function POST(request: NextRequest) {
         .upsert({
           email: cleanEmail,
           course_slug: courseSlug.trim(),
+          course_name: courseName ? courseName.trim() : null,
+          thumbnail: thumbnail ? thumbnail.trim() : null,
           status: 'pending_order',
           updated_at: new Date().toISOString()
         }, {
@@ -216,8 +229,13 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
         }
 
-        // Trigger email number 2 if transitioned to ready
+        // Trigger email number 2 and update enrollment statuses if transitioned to ready
         if (isPreviousPlaceholder && isNewRecipeReady) {
+          await supabaseAdmin
+            .from('student_enrollments')
+            .update({ status: 'approved_ready' })
+            .eq('course_slug', courseSlug.trim())
+            .in('status', ['approved_waiting_content', 'active']);
           triggerCourseReadyEmails(courseSlug.trim(), title || existingPost.title || courseSlug.trim()).catch(console.error);
         }
 
@@ -243,12 +261,17 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
         }
 
-        // Trigger email if created with a real recipe directly
+        // Trigger email and update enrollment statuses if created with a real recipe directly
         const isNewRecipeReady = recipe && 
           !recipe.includes('Nội dung bài viết sẽ sớm được cập nhật') && 
           recipe.trim() !== '';
           
         if (isNewRecipeReady) {
+          await supabaseAdmin
+            .from('student_enrollments')
+            .update({ status: 'approved_ready' })
+            .eq('course_slug', courseSlug.trim())
+            .in('status', ['approved_waiting_content', 'active']);
           triggerCourseReadyEmails(courseSlug.trim(), title || courseSlug.trim()).catch(console.error);
         }
 
@@ -288,7 +311,7 @@ async function triggerCourseReadyEmails(courseSlug: string, courseTitle: string)
       .from('student_enrollments')
       .select('email')
       .eq('course_slug', courseSlug)
-      .eq('status', 'active');
+      .in('status', ['approved_ready', 'approved_waiting_content', 'active']);
 
     if (enrollments && enrollments.length > 0) {
       for (const enroll of enrollments) {

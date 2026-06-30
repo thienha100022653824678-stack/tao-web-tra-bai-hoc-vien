@@ -6,7 +6,7 @@ export async function getMyCourses(email: string) {
   // 1. Fetch enrollments
   const { data: enrollments, error: enrollError } = await supabaseAdmin
     .from('student_enrollments')
-    .select('course_slug, created_at, status')
+    .select('course_slug, created_at, status, course_name, thumbnail')
     .eq('email', cleanEmail);
 
   if (enrollError) {
@@ -46,18 +46,26 @@ export async function getMyCourses(email: string) {
     if (enrollment.status === 'pending_order') {
       status = 'pending_order';
     } else {
-      // Post status checks (ready or active or null fallback)
-      const isReady = post ? (post.status === 'ready' || post.status === 'active' || !post.status) : false;
-      status = isReady ? 'approved_ready' : 'approved_waiting_content';
+      // Dynamic enrollment status (approved_ready or approved_waiting_content)
+      if (enrollment.status === 'approved_ready' || enrollment.status === 'approved_waiting_content') {
+        status = enrollment.status as any;
+      } else {
+        // Fallback for old active status
+        const isReady = post ? (post.status === 'ready' || post.status === 'active' || !post.status) : false;
+        status = isReady ? 'approved_ready' : 'approved_waiting_content';
+      }
     }
+
+    const courseTitle = post?.title || enrollment.course_name || slug;
+    const courseImage = post?.images || (enrollment.thumbnail ? [enrollment.thumbnail] : []);
 
     return {
       id: post?.id || `course-${slug}`,
-      title: post?.title || slug,
+      title: courseTitle,
       course_slug: slug,
       status,
       grantedAt: enrollment.created_at,
-      images: post?.images || []
+      images: courseImage
     };
   });
 }
