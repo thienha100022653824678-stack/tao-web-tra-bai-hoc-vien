@@ -28,15 +28,20 @@ export async function POST(request: NextRequest) {
     // 1. SYNC COURSE (Đồng bộ tạo/sửa bài viết liên kết với khóa học)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'syncCourse') {
+      const { courseSlug, title, imageUrl, isPublished } = body || {};
       if (!courseSlug || !title) {
         return NextResponse.json({ success: false, error: 'Thiếu courseSlug hoặc title' }, { status: 400 });
       }
+
+      const slug = courseSlug.trim();
+      const isPub = isPublished === true || isPublished === "true";
+      const targetStatus = isPub ? 'ready' : 'waiting';
 
       // Check if a post mapped to this course slug already exists
       const { data: existingPost, error: fetchErr } = await supabaseAdmin
         .from('posts')
         .select('id')
-        .eq('course_slug', courseSlug.trim())
+        .eq('course_slug', slug)
         .maybeSingle();
 
       if (fetchErr) {
@@ -44,22 +49,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: fetchErr.message }, { status: 500 });
       }
 
+      let postId = '';
       if (existingPost) {
-        // Update basic metadata (title and image)
+        postId = existingPost.id;
+        // Update basic metadata and status
         const { error: updateErr } = await supabaseAdmin
           .from('posts')
           .update({
             title: title.trim(),
-            images: imageUrl ? [imageUrl.trim()] : []
+            images: imageUrl ? [imageUrl.trim()] : [],
+            status: targetStatus
           })
-          .eq('id', existingPost.id);
+          .eq('id', postId);
 
         if (updateErr) {
           console.error('Error updating post during sync:', updateErr);
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
         }
-
-        return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
       } else {
         // Insert new post
         const { data: newPost, error: insertErr } = await supabaseAdmin
@@ -69,8 +75,8 @@ export async function POST(request: NextRequest) {
             recipe: '<h2>Nội dung bài viết sẽ sớm được cập nhật bởi giảng viên.</h2>',
             images: imageUrl ? [imageUrl.trim()] : [],
             views: 0,
-            course_slug: courseSlug.trim(),
-            status: 'waiting'
+            course_slug: slug,
+            status: targetStatus
           })
           .select('id')
           .single();
@@ -79,9 +85,25 @@ export async function POST(request: NextRequest) {
           console.error('Error inserting post during sync:', insertErr);
           return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
         }
-
-        return NextResponse.json({ success: true, postId: newPost.id, created: true, projectRef });
+        postId = newPost.id;
       }
+
+      // Propagate enrollments status
+      if (isPub) {
+        await supabaseAdmin
+          .from('student_enrollments')
+          .update({ status: 'approved_ready' })
+          .eq('course_slug', slug)
+          .in('status', ['approved_waiting_content', 'active']);
+      } else {
+        await supabaseAdmin
+          .from('student_enrollments')
+          .update({ status: 'approved_waiting_content' })
+          .eq('course_slug', slug)
+          .in('status', ['approved_ready', 'active']);
+      }
+
+      return NextResponse.json({ success: true, postId, updated: true, projectRef });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -160,6 +182,86 @@ export async function POST(request: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // 2.6 SYNC COURSE PUBLISH STATUS (Cập nhật trạng thái xuất bản từ LMS)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'syncCoursePublishStatus') {
+      const { courseSlug, isPublished, title, imageUrl } = body || {};
+      if (!courseSlug) {
+        return NextResponse.json({ success: false, error: 'Thiếu courseSlug' }, { status: 400 });
+      }
+
+      const slug = courseSlug.trim();
+      const isPub = isPublished === true || isPublished === "true";
+      const targetStatus = isPub ? 'ready' : 'waiting';
+
+      // 1. Check if post exists, if not, create it. If yes, update status, title, image.
+      const { data: existingPost } = await supabaseAdmin
+        .from('posts')
+        .select('id, status')
+        .eq('course_slug', slug)
+        .maybeSingle();
+
+      let postId = '';
+      if (existingPost) {
+        postId = existingPost.id;
+        const { error: updateErr } = await supabaseAdmin
+          .from('posts')
+          .update({
+            status: targetStatus,
+            title: title ? title.trim() : undefined,
+            images: imageUrl ? [imageUrl.trim()] : undefined,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', postId);
+
+        if (updateErr) {
+          console.error('Error updating post status during publish status sync:', updateErr);
+          return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+        }
+      } else {
+        const { data: newPost, error: insertErr } = await supabaseAdmin
+          .from('posts')
+          .insert({
+            title: (title || 'Bài học mới').trim(),
+            recipe: '<h2>Nội dung bài viết sẽ sớm được cập nhật bởi giảng viên.</h2>',
+            images: imageUrl ? [imageUrl.trim()] : [],
+            views: 0,
+            course_slug: slug,
+            status: targetStatus,
+            created_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (insertErr) {
+          console.error('Error inserting post during publish status sync:', insertErr);
+          return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
+        }
+        postId = newPost.id;
+      }
+
+      // 2. Update enrollments status
+      if (isPub) {
+        await supabaseAdmin
+          .from('student_enrollments')
+          .update({ status: 'approved_ready' })
+          .eq('course_slug', slug)
+          .in('status', ['approved_waiting_content', 'active']);
+
+        // Trigger Email 2 (Khóa học sẵn sàng) to all enrolled students
+        triggerCourseReadyEmails(slug, title || slug).catch(console.error);
+      } else {
+        await supabaseAdmin
+          .from('student_enrollments')
+          .update({ status: 'approved_waiting_content' })
+          .eq('course_slug', slug)
+          .in('status', ['approved_ready', 'active']);
+      }
+
+      return NextResponse.json({ success: true, postId, isPublished: isPub, projectRef });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // 3. REVOKE ENROLLMENT (Thu hồi quyền Gmail học viên)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'revokeEnrollment') {
@@ -205,19 +307,11 @@ export async function POST(request: NextRequest) {
       }
 
       if (existingPost) {
-        // Update recipe and optionally title
+        // Update recipe and optionally title (do NOT touch status or enrollments)
         const updatePayload: any = {
-          recipe: recipe || '',
-          status: 'ready'
+          recipe: recipe || ''
         };
         if (title) updatePayload.title = title.trim();
-
-        // Check transition from waiting (placeholder) to ready (actual recipe)
-        const isPreviousPlaceholder = !existingPost.recipe || 
-          existingPost.recipe.includes('Nội dung bài viết sẽ sớm được cập nhật');
-        const isNewRecipeReady = recipe && 
-          !recipe.includes('Nội dung bài viết sẽ sớm được cập nhật') && 
-          recipe.trim() !== '';
 
         const { error: updateErr } = await supabaseAdmin
           .from('posts')
@@ -229,19 +323,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
         }
 
-        // Trigger email number 2 and update enrollment statuses if transitioned to ready
-        if (isPreviousPlaceholder && isNewRecipeReady) {
-          await supabaseAdmin
-            .from('student_enrollments')
-            .update({ status: 'approved_ready' })
-            .eq('course_slug', courseSlug.trim())
-            .in('status', ['approved_waiting_content', 'active']);
-          triggerCourseReadyEmails(courseSlug.trim(), title || existingPost.title || courseSlug.trim()).catch(console.error);
-        }
-
         return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
       } else {
-        // Insert new post
+        // Insert new post with default status 'waiting'
         const { data: newPost, error: insertErr } = await supabaseAdmin
           .from('posts')
           .insert({
@@ -250,7 +334,7 @@ export async function POST(request: NextRequest) {
             images: [],
             views: 0,
             course_slug: courseSlug.trim(),
-            status: 'ready',
+            status: 'waiting',
             created_at: new Date().toISOString()
           })
           .select('id')
@@ -259,20 +343,6 @@ export async function POST(request: NextRequest) {
         if (insertErr) {
           console.error('Error inserting new post during recipe sync:', insertErr);
           return NextResponse.json({ success: false, error: insertErr.message }, { status: 500 });
-        }
-
-        // Trigger email and update enrollment statuses if created with a real recipe directly
-        const isNewRecipeReady = recipe && 
-          !recipe.includes('Nội dung bài viết sẽ sớm được cập nhật') && 
-          recipe.trim() !== '';
-          
-        if (isNewRecipeReady) {
-          await supabaseAdmin
-            .from('student_enrollments')
-            .update({ status: 'approved_ready' })
-            .eq('course_slug', courseSlug.trim())
-            .in('status', ['approved_waiting_content', 'active']);
-          triggerCourseReadyEmails(courseSlug.trim(), title || courseSlug.trim()).catch(console.error);
         }
 
         return NextResponse.json({ success: true, postId: newPost.id, created: true, projectRef });
