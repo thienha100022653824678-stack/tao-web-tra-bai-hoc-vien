@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
             recipe: '<h2>Nội dung bài viết sẽ sớm được cập nhật bởi giảng viên.</h2>',
             images: imageUrl ? [imageUrl.trim()] : [],
             views: 0,
-            course_slug: courseSlug.trim()
+            course_slug: courseSlug.trim(),
+            status: 'waiting'
           })
           .select('id')
           .single();
@@ -108,6 +109,37 @@ export async function POST(request: NextRequest) {
 
       if (upsertErr) {
         console.error('Error upserting enrollment access:', upsertErr);
+        return NextResponse.json({ success: false, error: upsertErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, enrollment, projectRef });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2.5 SYNC PENDING ORDER (Đồng bộ đơn hàng chờ duyệt sang Portal)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'syncPendingOrder') {
+      if (!email || !courseSlug) {
+        return NextResponse.json({ success: false, error: 'Thiếu email hoặc courseSlug' }, { status: 400 });
+      }
+
+      const cleanEmail = email.toLowerCase().trim();
+
+      const { data: enrollment, error: upsertErr } = await supabaseAdmin
+        .from('student_enrollments')
+        .upsert({
+          email: cleanEmail,
+          course_slug: courseSlug.trim(),
+          status: 'pending_order',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'email,course_slug'
+        })
+        .select()
+        .single();
+
+      if (upsertErr) {
+        console.error('Error upserting pending order enrollment:', upsertErr);
         return NextResponse.json({ success: false, error: upsertErr.message }, { status: 500 });
       }
 
@@ -162,7 +194,8 @@ export async function POST(request: NextRequest) {
       if (existingPost) {
         // Update recipe and optionally title
         const updatePayload: any = {
-          recipe: recipe || ''
+          recipe: recipe || '',
+          status: 'ready'
         };
         if (title) updatePayload.title = title.trim();
 
@@ -199,6 +232,7 @@ export async function POST(request: NextRequest) {
             images: [],
             views: 0,
             course_slug: courseSlug.trim(),
+            status: 'ready',
             created_at: new Date().toISOString()
           })
           .select('id')
