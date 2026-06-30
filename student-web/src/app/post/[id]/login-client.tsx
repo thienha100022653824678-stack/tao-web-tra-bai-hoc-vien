@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, ArrowLeft } from 'lucide-react';
 import styles from './post.module.css';
 
 interface LoginClientProps {
@@ -72,6 +73,7 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
             size: 'large',
             text: 'signin_with',
             shape: 'rectangular',
+            width: 280,
           });
         }
       }
@@ -96,41 +98,69 @@ export default function LoginClient({ clientId, email }: LoginClientProps) {
   };
 
   return (
-    <div style={{ marginTop: '20px', width: '100%' }}>
+    <div className={styles.loginCard} style={{ maxWidth: '440px', padding: '2rem 1.5rem', background: '#0e1217', borderColor: '#1f2937', borderRadius: '16px', margin: '40px auto', textAlign: 'center' }}>
       {email ? (
-        <div className={styles.errorContent}>
-          <p className={styles.loginText}>
-            Tài khoản Gmail <strong style={{ color: 'var(--accent)' }}>{email}</strong> của bạn chưa được cấp quyền truy cập khóa học này.
+        // State 2: Logged in but unauthorized (wrong Gmail)
+        <div>
+          <div style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>🔒</div>
+          <h2 className={styles.loginTitle} style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 800 }}>
+            Gmail này chưa được cấp quyền
+          </h2>
+          <p className={styles.loginText} style={{ fontSize: '0.9rem', color: '#9ca3af', marginBottom: '1.25rem' }}>
+            Bạn đang đăng nhập bằng:<br/>
+            <strong style={{ color: 'var(--accent)', wordBreak: 'break-all' }}>{email}</strong>
           </p>
-          <p className={styles.loginTextSub} style={{ marginBottom: '15px' }}>
-            Vui lòng liên hệ Admin hoặc đăng nhập bằng tài khoản khác bên dưới.
-          </p>
-          
-          <div className={styles.actionGroup} style={{ marginTop: '10px' }}>
-            <div ref={googleBtnRef} className={styles.googleBtn}></div>
-            <button onClick={handleLogout} className={styles.logoutButton}>
-              <LogOut size={16} /> Đăng xuất tài khoản
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', margin: '1.5rem 0' }}>
+            <div ref={googleBtnRef} className={styles.googleBtn} style={{ minHeight: '44px' }}>
+              <div style={{ background: '#1a73e8', color: '#fff', padding: '10px 20px', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', width: '280px' }}>
+                Đăng nhập tài khoản khác...
+              </div>
+            </div>
+            <button onClick={handleLogout} className={styles.logoutButton} style={{ marginTop: '0.25rem' }}>
+              <LogOut size={14} /> Đăng xuất tài khoản
             </button>
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-          <div ref={googleBtnRef}></div>
+        // State 1: Not logged in
+        <div>
+          <div style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>🔒</div>
+          <h2 className={styles.loginTitle} style={{ fontSize: '1.25rem', marginBottom: '1rem', fontWeight: 800 }}>
+            Nội dung khóa học cần đăng nhập
+          </h2>
+          <p className={styles.loginText} style={{ fontSize: '0.9rem', color: '#9ca3af', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+            Vui lòng đăng nhập đúng Gmail đã mua khóa học để xem bài học.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '1.5rem 0' }}>
+            <div ref={googleBtnRef} className={styles.googleBtn} style={{ minHeight: '44px' }}>
+              <div style={{ background: '#1a73e8', color: '#fff', padding: '10px 20px', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', width: '280px' }}>
+                Đăng nhập bằng Google
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Trình duyệt in-app / Hướng dẫn đơn giản cho người cao tuổi */}
-      <div className={styles.browserHelperContainer} style={{ marginTop: '25px' }}>
-        <div className={styles.helperHeader} style={{ fontSize: '0.9rem', marginBottom: '6px' }}>
-          <strong>💡 Hướng dẫn mở nhanh trên điện thoại:</strong>
+      {/* Browser Helper Box */}
+      <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'left', marginTop: '1.5rem' }}>
+        <div style={{ fontWeight: 'bold', color: '#fbbf24', fontSize: '0.85rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          💡 Đang mở trong Zalo/Facebook?
         </div>
-        <p className={styles.helperText} style={{ fontSize: '0.85rem', color: '#9ca3af', marginBottom: '12px' }}>
-          Bấm dấu <strong>⋯</strong> (ở góc trên cùng bên phải) → Chọn <strong>"Mở bằng trình duyệt"</strong> (hoặc <strong>"Open in browser"</strong> / <strong>"Mở bằng Safari"</strong>).
+        <p style={{ fontSize: '0.8rem', color: '#9ca3af', lineHeight: '1.45', marginBottom: '12px' }}>
+          Bấm dấu <strong style={{ color: '#fff' }}>⋯</strong> ở góc trên bên phải → chọn <strong style={{ color: '#fff' }}>“Mở bằng trình duyệt”</strong> hoặc <strong style={{ color: '#fff' }}>“Open in browser”</strong>.
         </p>
-        
-        <button onClick={handleCopy} className={styles.secondaryHelperBtn} style={{ width: '100%', padding: '0.65rem' }}>
+        <button onClick={handleCopy} className={styles.secondaryHelperBtn} style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600 }}>
           {copied ? '✅ Đã copy link!' : '📋 Copy link bài học'}
         </button>
+      </div>
+
+      {/* Auxiliary Nav Links */}
+      <div style={{ marginTop: '1.5rem' }}>
+        <Link href="/" className={styles.secondaryHelperBtn} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '0.6rem', fontSize: '0.8rem', background: 'transparent', borderColor: 'rgba(255,255,255,0.08)' }}>
+          <ArrowLeft size={14} /> Quay về Trang chủ
+        </Link>
       </div>
     </div>
   );

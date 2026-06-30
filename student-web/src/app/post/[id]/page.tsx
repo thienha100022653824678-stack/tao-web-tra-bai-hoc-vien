@@ -121,26 +121,7 @@ export default async function PostDetail({ params }: PostPageProps) {
     const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
     return (
       <main className={styles.container}>
-        <div className={`${styles.errorCard} glass animate-fade-in`}>
-          <Lock className={styles.errorIcon} size={64} style={{ color: 'var(--accent)' }} />
-          <h2 className={styles.errorTitle}>Nội Dung Bảo Mật</h2>
-          <p className={styles.errorText}>
-            {sessionEmail 
-              ? `Tài khoản Google (${sessionEmail}) chưa được duyệt cho khóa học này. Vui lòng liên hệ giảng viên hoặc đăng nhập tài khoản khác.`
-              : 'Vui lòng đăng nhập bằng tài khoản Google đã mua khóa học để xem nội dung bài học.'}
-          </p>
-          
-          <LoginClient clientId={googleClientId} email={sessionEmail || undefined} />
-
-          <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
-            <Link href="/my-courses" className={styles.homeButton} style={{ width: '100%', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: '#fff', justifyContent: 'center' }}>
-              <GraduationCap size={18} /> Xem khóa học của tôi
-            </Link>
-            <Link href="/" className={styles.homeButton} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', justifyContent: 'center' }}>
-              <ArrowLeft size={18} /> Quay về Trang chủ
-            </Link>
-          </div>
-        </div>
+        <LoginClient clientId={googleClientId} email={sessionEmail || undefined} />
       </main>
     );
   }
