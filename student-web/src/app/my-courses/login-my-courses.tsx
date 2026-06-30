@@ -34,7 +34,7 @@ export default function LoginMyCourses({ clientId }: LoginMyCoursesProps) {
               });
               const data = await res.json();
               if (data.success) {
-                router.refresh();
+                window.location.href = '/my-courses';
               } else {
                 alert(data.error || 'Đăng nhập thất bại');
               }
