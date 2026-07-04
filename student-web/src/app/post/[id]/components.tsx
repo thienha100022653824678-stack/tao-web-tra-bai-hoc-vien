@@ -326,8 +326,39 @@ function parsePlainUrls(text: string): React.ReactNode[] {
   return parts;
 }
 
+function looksLikeHtml(content: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(String(content || ""));
+}
+
+function decodeHtmlEntities(text: string) {
+  return String(text || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function htmlRecipeToText(html: string) {
+  return decodeHtmlEntities(String(html || ""))
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(h1|h2|h3|h4|p|div|section|article|li)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<a\b[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+    .replace(/<[^>]+>/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function RecipeRenderer({ content }: { content: string }) {
-  const lines = content.split('\n');
+  const safeContent = looksLikeHtml(content) ? htmlRecipeToText(content) : content;
+  const lines = safeContent.split('\n');
   return (
     <div className={styles.recipeContent}>
       {lines.map((line, idx) => {

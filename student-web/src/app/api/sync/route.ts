@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
+const PORTAL_RECIPE_PLACEHOLDER = 'noi dung bai viet se som duoc cap nhat boi giang vien';
+
+function normalizePlainText(value: unknown) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function hasRealRecipeText(value: unknown) {
+  const normalized = normalizePlainText(value);
+  return Boolean(normalized && !normalized.includes(PORTAL_RECIPE_PLACEHOLDER));
+}
+
 export async function POST(request: NextRequest) {
   // Verify sync secret
   const syncSecret = request.headers.get('x-sync-secret');
@@ -291,6 +308,15 @@ export async function POST(request: NextRequest) {
       const { courseSlug, recipe, title } = body || {};
       if (!courseSlug) {
         return NextResponse.json({ success: false, error: 'Thiếu courseSlug' }, { status: 400 });
+      }
+
+      if (!hasRealRecipeText(recipe)) {
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          reason: 'no_real_recipe',
+          projectRef
+        });
       }
 
       // Check if a post mapped to this course slug already exists
