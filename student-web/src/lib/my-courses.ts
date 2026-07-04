@@ -188,7 +188,7 @@ export async function getMyCourses(email: string) {
     if (!slug || !course) continue;
 
     const post = postsBySlug.get(slug);
-    const ready = course.is_published === true;
+    const ready = course.is_published === true && Boolean(post?.id);
 
     mergeCourse(courses, {
       id: post?.id || `course-${slug}`,
@@ -206,7 +206,7 @@ export async function getMyCourses(email: string) {
     if (!slug || !course) continue;
 
     const post = postsBySlug.get(slug);
-    const ready = course.is_published === true;
+    const ready = course.is_published === true && Boolean(post?.id);
     const status: CourseStatus = isApprovedOrder(order.status)
       ? (ready ? 'approved_ready' : 'approved_waiting_content')
       : 'pending_order';
@@ -236,7 +236,7 @@ export async function getMyCourses(email: string) {
     if (enrollment.status === 'pending_order') {
       status = 'pending_order';
     } else if (course) {
-      status = course.is_published === true ? 'approved_ready' : 'approved_waiting_content';
+      status = course.is_published === true && Boolean(post?.id) ? 'approved_ready' : 'approved_waiting_content';
     } else if (enrollment.status === 'approved_ready' || enrollment.status === 'approved_waiting_content') {
       status = enrollment.status;
     } else {
