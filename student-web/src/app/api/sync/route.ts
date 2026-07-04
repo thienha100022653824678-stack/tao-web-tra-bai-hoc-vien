@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
     // 4. SYNC RECIPE (Đồng bộ công thức từ bài học LMS sang bài viết tương ứng)
     // ─────────────────────────────────────────────────────────────────────────
     if (action === 'syncRecipe') {
-      const { courseSlug, recipe, title } = body || {};
+      const { courseSlug, recipe, title, createIfMissing = true } = body || {};
       if (!courseSlug) {
         return NextResponse.json({ success: false, error: 'Thiếu courseSlug' }, { status: 400 });
       }
@@ -349,6 +349,14 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true, postId: existingPost.id, updated: true, projectRef });
+      } else if (createIfMissing === false) {
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          reason: 'post_not_found',
+          courseSlug: courseSlug.trim(),
+          projectRef
+        });
       } else {
         // Insert new post with default status 'waiting'
         const { data: newPost, error: insertErr } = await supabaseAdmin
