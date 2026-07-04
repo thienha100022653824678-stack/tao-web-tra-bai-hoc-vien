@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 import { ArrowLeft, Calendar, Eye, AlertTriangle, Lock, GraduationCap } from 'lucide-react';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { lmsSupabaseAdmin, supabase, supabaseAdmin } from '@/lib/supabase';
 import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
 import LoginClient from './login-client';
@@ -14,6 +14,28 @@ interface PostPageProps {
   params: Promise<{
     id: string;
   }>;
+}
+
+function normalizeSlug(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeStatus(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isAuthorizedEnrollmentStatus(value: unknown): boolean {
+  return new Set([
+    'active',
+    'approved',
+    'approved_ready',
+    'approved_waiting_content',
+    'completed',
+  ]).has(normalizeStatus(value));
 }
 
 export default async function PostDetail({ params }: PostPageProps) {
@@ -90,18 +112,40 @@ export default async function PostDetail({ params }: PostPageProps) {
         sessionEmail = session.email;
         const isLmsAdmin = isAdminEmail(sessionEmail);
         if (!isLmsAdmin) {
-          // Check active enrollment in Supabase for this course
-          const { data: enrollment } = await supabaseAdmin
-            .from('student_enrollments')
-            .select('id, status')
-            .eq('email', sessionEmail.trim().toLowerCase())
-            .eq('course_slug', courseSlug.trim())
-            .in('status', ['approved_ready', 'approved_waiting_content', 'active'])
-            .maybeSingle();
+          const targetSlug = normalizeSlug(courseSlug);
+          const cleanEmail = sessionEmail.trim().toLowerCase();
+          const [portalEnrollmentResult, lmsEnrollmentResult] = await Promise.all([
+            supabaseAdmin
+              .from('student_enrollments')
+              .select('id, course_slug, status')
+              .eq('email', cleanEmail),
+            lmsSupabaseAdmin
+              ? lmsSupabaseAdmin
+                  .from('student_enrollments')
+                  .select('id, course_slug, status')
+                  .eq('email', cleanEmail)
+              : Promise.resolve({ data: [], error: null }),
+          ]);
+
+          if (portalEnrollmentResult.error) {
+            console.error('STUDENT_WEB_PORTAL_ENROLLMENT_ERROR:', portalEnrollmentResult.error);
+          }
+          if (lmsEnrollmentResult.error) {
+            console.error('STUDENT_WEB_LMS_ENROLLMENT_ERROR:', lmsEnrollmentResult.error);
+          }
+
+          const enrollment = [
+            ...(portalEnrollmentResult.data || []),
+            ...(lmsEnrollmentResult.data || []),
+          ].find((row: any) =>
+            normalizeSlug(row.course_slug) === targetSlug
+            && isAuthorizedEnrollmentStatus(row.status)
+          );
 
           console.log('STUDENT_WEB_ENROLLMENT_VAL:', {
             hasEnrollment: !!enrollment,
-            enrollmentStatus: enrollment?.status
+            enrollmentStatus: enrollment?.status,
+            checkedCourseSlug: targetSlug
           });
 
           if (!enrollment) {
