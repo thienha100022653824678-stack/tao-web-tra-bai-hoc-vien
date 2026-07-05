@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 const PORTAL_RECIPE_PLACEHOLDER = 'noi dung bai viet se som duoc cap nhat boi giang vien';
+const MIN_REAL_RECIPE_CHARS = 40;
+const TITLE_ONLY_RECIPE_TEXTS = new Set([
+  'tai lieu lop hoc',
+  'tai lieu khoa hoc',
+  'tong quan',
+  'chua co mo ta ngan'
+]);
 
 function normalizePlainText(value: unknown) {
   return String(value || '')
@@ -15,7 +22,10 @@ function normalizePlainText(value: unknown) {
 
 function hasRealRecipeText(value: unknown) {
   const normalized = normalizePlainText(value);
-  return Boolean(normalized && !normalized.includes(PORTAL_RECIPE_PLACEHOLDER));
+  if (!normalized || normalized.length < MIN_REAL_RECIPE_CHARS) return false;
+  if (normalized.includes(PORTAL_RECIPE_PLACEHOLDER)) return false;
+  if (TITLE_ONLY_RECIPE_TEXTS.has(normalized)) return false;
+  return true;
 }
 
 export async function POST(request: NextRequest) {
