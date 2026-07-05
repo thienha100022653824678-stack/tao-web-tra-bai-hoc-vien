@@ -73,6 +73,11 @@ function imagesFrom(value: unknown): string[] {
   return single ? [single] : [];
 }
 
+function studentTitleFromCourse(course: any, fallback: unknown): string {
+  const studentDisplayTitle = String(course?.raw_data?.studentDisplayTitle || '').trim();
+  return studentDisplayTitle || String(fallback || course?.title || course?.slug || '').trim();
+}
+
 function mergeCourse(target: Map<string, MyCourse>, next: MyCourse) {
   const existing = target.get(next.course_slug);
   if (!existing) {
@@ -162,7 +167,7 @@ export async function getMyCourses(email: string) {
   if (lmsSupabaseAdmin && allSlugs.length > 0) {
     const { data: courseRows, error: lmsCourseError } = await lmsSupabaseAdmin
       .from('courses')
-      .select('slug, title, image_url, active, is_published')
+      .select('slug, title, raw_data, image_url, active, is_published')
       .in('slug', allSlugs);
     if (lmsCourseError) {
       console.error('Error fetching LMS courses in my-courses helper:', lmsCourseError);
@@ -192,7 +197,7 @@ export async function getMyCourses(email: string) {
 
     mergeCourse(courses, {
       id: post?.id || `course-${slug}`,
-      title: course.title || post?.title || slug,
+      title: studentTitleFromCourse(course, post?.title || slug),
       course_slug: slug,
       status: ready ? 'approved_ready' : 'approved_waiting_content',
       grantedAt: enrollment.created_at || enrollment.updated_at,
@@ -213,7 +218,7 @@ export async function getMyCourses(email: string) {
 
     mergeCourse(courses, {
       id: post?.id || `course-${slug}`,
-      title: course.title || order.course_title || post?.title || slug,
+      title: studentTitleFromCourse(course, order.course_title || post?.title || slug),
       course_slug: slug,
       status,
       grantedAt: order.updated_at || order.created_at,
@@ -245,7 +250,7 @@ export async function getMyCourses(email: string) {
 
     mergeCourse(courses, {
       id: post?.id || `course-${slug}`,
-      title: course?.title || post?.title || enrollment.course_name || slug,
+      title: course ? studentTitleFromCourse(course, post?.title || enrollment.course_name || slug) : post?.title || enrollment.course_name || slug,
       course_slug: slug,
       status,
       grantedAt: enrollment.created_at,

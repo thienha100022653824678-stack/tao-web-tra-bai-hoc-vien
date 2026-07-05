@@ -77,6 +77,21 @@ export default async function PostDetail({ params }: PostPageProps) {
 
   // ── Gating Checks (Phân quyền khóa học phụ) ──
   const courseSlug = post.course_slug;
+  let studentFacingTitle = String(post.title || '').trim();
+  if (courseSlug && lmsSupabaseAdmin) {
+    const { data: lmsCourse, error: lmsCourseError } = await lmsSupabaseAdmin
+      .from('courses')
+      .select('title, raw_data')
+      .eq('slug', normalizeSlug(courseSlug))
+      .maybeSingle();
+
+    if (lmsCourseError) {
+      console.error('STUDENT_WEB_LMS_COURSE_TITLE_ERROR:', lmsCourseError);
+    }
+
+    const studentDisplayTitle = String((lmsCourse?.raw_data as any)?.studentDisplayTitle || '').trim();
+    studentFacingTitle = studentDisplayTitle || String(lmsCourse?.title || post.title || courseSlug).trim();
+  }
   let isAuthorized = true;
   let sessionEmail = '';
 
@@ -222,7 +237,7 @@ export default async function PostDetail({ params }: PostPageProps) {
                 </div>
               )}
             </div>
-            <h1 className={styles.title} style={{ marginBottom: courseSlug ? '0.75rem' : '0' }}>{post.title}</h1>
+            <h1 className={styles.title} style={{ marginBottom: courseSlug ? '0.75rem' : '0' }}>{studentFacingTitle || post.title}</h1>
             
             {/* Hiển thị nút bài học gốc LMS nếu có course_slug */}
             {courseSlug && (
@@ -240,7 +255,7 @@ export default async function PostDetail({ params }: PostPageProps) {
           </div>
 
           {/* Recipe Card */}
-          <RecipeCardWrapper title={post.title} recipe={post.recipe} />
+          <RecipeCardWrapper title={studentFacingTitle || post.title} recipe={post.recipe} />
         </div>
       </div>
     </main>
