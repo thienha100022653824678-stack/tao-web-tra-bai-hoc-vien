@@ -79,18 +79,40 @@ export default async function PostDetail({ params }: PostPageProps) {
   const courseSlug = post.course_slug;
   let studentFacingTitle = String(post.title || '').trim();
   if (courseSlug && lmsSupabaseAdmin) {
-    const { data: lmsCourse, error: lmsCourseError } = await lmsSupabaseAdmin
-      .from('courses')
-      .select('title, raw_data')
-      .eq('slug', normalizeSlug(courseSlug))
-      .maybeSingle();
+    const [lmsCourseResult, configResult] = await Promise.all([
+      lmsSupabaseAdmin
+        .from('courses')
+        .select('title, raw_data')
+        .ilike('slug', courseSlug.trim())
+        .maybeSingle(),
+      lmsSupabaseAdmin
+        .from('site_config')
+        .select('value')
+        .eq('key', `${courseSlug.trim()}_studentDisplayTitle`)
+        .maybeSingle()
+    ]);
 
-    if (lmsCourseError) {
-      console.error('STUDENT_WEB_LMS_COURSE_TITLE_ERROR:', lmsCourseError);
+    const lmsCourse = lmsCourseResult.data;
+    const configRow = configResult.data;
+
+    if (lmsCourseResult.error) {
+      console.error('STUDENT_WEB_LMS_COURSE_TITLE_ERROR:', lmsCourseResult.error);
+    }
+    if (configResult.error) {
+      console.error('STUDENT_WEB_LMS_CONFIG_TITLE_ERROR:', configResult.error);
     }
 
-    const studentDisplayTitle = String((lmsCourse?.raw_data as any)?.studentDisplayTitle || '').trim();
-    studentFacingTitle = studentDisplayTitle || String(lmsCourse?.title || post.title || courseSlug).trim();
+    const rawDataTitle = String((lmsCourse?.raw_data as any)?.studentDisplayTitle || '').trim();
+    const courseFieldTitle = String((lmsCourse as any)?.studentDisplayTitle || '').trim();
+    const configTitle = String((configRow?.value as any)?.val || '').trim();
+    const courseTitle = String(lmsCourse?.title || '').trim();
+
+    studentFacingTitle = 
+      rawDataTitle || 
+      courseFieldTitle || 
+      configTitle || 
+      courseTitle || 
+      String(post.title || '').trim();
   }
   let isAuthorized = true;
   let sessionEmail = '';
