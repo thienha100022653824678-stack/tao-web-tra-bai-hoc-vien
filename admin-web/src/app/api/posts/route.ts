@@ -66,7 +66,7 @@ export async function GET() {
 // 2. POST: Create a new post
 export async function POST(request: Request) {
   try {
-    const { title, recipe, images } = await request.json();
+    const { title, recipe, images, source } = await request.json();
 
     if (!title) {
       return NextResponse.json({ success: false, error: 'Tiêu đề không được để trống' }, { status: 400 });
@@ -81,7 +81,8 @@ export async function POST(request: Request) {
         title,
         recipe,
         images: images || [],
-        views: 0
+        views: 0,
+        source: source || 'main_admin'
       })
       .select()
       .single();

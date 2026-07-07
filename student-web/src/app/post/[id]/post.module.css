@@ -816,3 +816,193 @@
   opacity: 0.95;
 }
 
+/* =========================================================================
+   PINTEREST FOOD STUDIO STYLE OVERRIDES (FOR posts created from shop_admin)
+   ========================================================================= */
+
+.shopLandingWrapper {
+  background-color: #FCF8F2 !important;
+  color: #2D1914 !important;
+  font-family: "Be Vietnam Pro", sans-serif !important;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.shopLandingWrapper .container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  min-height: 100vh;
+}
+
+.shopLandingWrapper .backButton {
+  background: #ffffff !important;
+  border: 1px solid rgba(45, 25, 20, 0.08) !important;
+  color: #2D1914 !important;
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(45, 25, 20, 0.02);
+  font-weight: 600;
+  transition: all 0.25s ease;
+  font-size: 0.85rem;
+}
+
+.shopLandingWrapper .backButton:hover {
+  background: #FCF8F2 !important;
+  border-color: #D96B27 !important;
+  color: #D96B27 !important;
+  transform: translateX(-4px);
+}
+
+.shopLandingWrapper .title {
+  font-family: "Playfair Display", serif !important;
+  font-weight: 850 !important;
+  color: #2D1914 !important;
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: initial !important;
+  font-size: 2.75rem !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.shopLandingWrapper .recipeCard {
+  background: #ffffff !important;
+  border: 1px solid rgba(45, 25, 20, 0.06) !important;
+  border-radius: 28px !important;
+  box-shadow: 0 12px 40px rgba(45, 25, 20, 0.03) !important;
+  color: #2D1914 !important;
+  padding: 2.25rem 2rem !important;
+  user-select: none;
+}
+
+.shopLandingWrapper .cardHeader {
+  border-bottom: 1.5px dashed rgba(45, 25, 20, 0.1) !important;
+  padding-bottom: 1.25rem !important;
+  margin-bottom: 1.75rem !important;
+}
+
+.shopLandingWrapper .cardTitle {
+  font-family: "Playfair Display", serif !important;
+  font-size: 1.5rem !important;
+  font-weight: 800 !important;
+  color: #2D1914 !important;
+}
+
+.shopLandingWrapper .recipeContent {
+  color: #2D1914 !important;
+}
+
+.shopLandingWrapper .recipeHeading3 {
+  font-family: "Playfair Display", serif !important;
+  font-size: 1.35rem !important;
+  font-weight: 800 !important;
+  color: #2A4B2A !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.75rem !important;
+  border-left: 4px solid #D96B27 !important;
+  padding-left: 0.65rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.shopLandingWrapper .recipeContent p {
+  color: #4A3E3B !important;
+  font-size: 0.975rem !important;
+  line-height: 1.75 !important;
+  margin-bottom: 1rem !important;
+}
+
+.shopLandingWrapper .recipeLi {
+  color: #4A3E3B !important;
+  font-size: 0.975rem !important;
+  padding-left: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+  line-height: 1.7 !important;
+}
+
+.shopLandingWrapper .recipeLi::before {
+  content: '•' !important;
+  color: #D96B27 !important;
+  font-size: 1.25rem !important;
+  left: 0.4rem !important;
+  top: -0.15rem !important;
+}
+
+.shopLandingWrapper .recipeOlLi {
+  color: #4A3E3B !important;
+  font-size: 0.975rem !important;
+  padding-left: 1.75rem !important;
+  margin-bottom: 0.525rem !important;
+  line-height: 1.7 !important;
+}
+
+.shopLandingWrapper .olNumber {
+  color: #D96B27 !important;
+  font-weight: 700 !important;
+}
+
+.shopLandingWrapper .recipeContent a {
+  color: #D96B27 !important;
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+}
+
+.shopLandingWrapper .recipeContent a:hover {
+  color: #2A4B2A !important;
+}
+
+/* Image gallery styling overrides for shop admin */
+.shopLandingWrapper .mainImageWrapper {
+  border-radius: 28px !important;
+  border: 1px solid rgba(45, 25, 20, 0.05) !important;
+  background: #FAF6F0 !important;
+  box-shadow: 0 12px 40px rgba(45, 25, 20, 0.04) !important;
+  aspect-ratio: 4 / 3 !important;
+}
+
+.shopLandingWrapper .thumbnail {
+  border-radius: 12px !important;
+  border: 2px solid transparent !important;
+  opacity: 0.65 !important;
+}
+
+.shopLandingWrapper .activeThumbnail {
+  border-color: #D96B27 !important;
+  opacity: 1 !important;
+  box-shadow: 0 4px 12px rgba(217, 107, 39, 0.2) !important;
+}
+
+.shopLandingWrapper .navButton {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2D1914 !important;
+  border: 1px solid rgba(45, 25, 20, 0.05) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+}
+
+.shopLandingWrapper .navButton:hover {
+  background: #D96B27 !important;
+  color: #ffffff !important;
+  border-color: #D96B27 !important;
+}
+
+.shopLandingWrapper .meta {
+  color: rgba(45, 25, 20, 0.6) !important;
+  font-weight: 500 !important;
+}
+
+.shopLandingWrapper .lmsLinkButton {
+  background: #2A4B2A !important;
+  color: #ffffff !important;
+  border-radius: 12px !important;
+  padding: 0.65rem 1.25rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 6px 20px rgba(42, 75, 42, 0.15) !important;
+  transition: all 0.2s ease !important;
+}
+
+.shopLandingWrapper .lmsLinkButton:hover {
+  background: #3E6B3E !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(42, 75, 42, 0.25) !important;
+}
+

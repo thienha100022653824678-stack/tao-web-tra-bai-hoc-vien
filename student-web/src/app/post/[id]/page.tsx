@@ -192,6 +192,7 @@ export default async function PostDetail({ params }: PostPageProps) {
     day: 'numeric',
   });
 
+
   // Construct media list (prepend hero_media_url to images)
   const mediaList: string[] = [];
   if (post.hero_media_url && post.hero_media_url.trim()) {
@@ -202,63 +203,66 @@ export default async function PostDetail({ params }: PostPageProps) {
     mediaList.push(...cleanImages);
   }
 
+  const isShopAdmin = post.source === 'shop_admin' || (post.source !== 'main_admin' && post.course_slug !== null);
+
   return (
-    <main className={styles.container}>
-      {/* ViewTracker to record view count on mount */}
-      <ViewTracker postId={id} />
-      <MarkAsViewed postId={id} />
+    <div className={isShopAdmin ? styles.shopLandingWrapper : ''}>
+      <main className={styles.container}>
+        {/* ViewTracker to record view count on mount */}
+        <ViewTracker postId={id} />
+        <MarkAsViewed postId={id} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <Link href="/" className={styles.backButton} style={{ marginBottom: 0 }}>
-          <ArrowLeft size={16} /> Quay lại cổng học viên
-        </Link>
-        <Link href="/my-courses" className={styles.backButton} style={{ marginBottom: 0, color: 'var(--accent)' }}>
-          <GraduationCap size={16} /> Khóa học của tôi
-        </Link>
-      </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <Link href="/" className={styles.backButton} style={{ marginBottom: 0 }}>
+            <ArrowLeft size={16} /> Quay lại cổng học viên
+          </Link>
+          <Link href="/my-courses" className={styles.backButton} style={{ marginBottom: 0, color: isShopAdmin ? '#D96B27' : 'var(--accent)' }}>
+            <GraduationCap size={16} /> Khóa học của tôi
+          </Link>
+        </div>
 
-      <div className={`${styles.grid} animate-fade-in`}>
-        {/* Left Column: Image/Video Gallery */}
-        <ImageGallery images={mediaList} />
+        <div className={`${styles.grid} animate-fade-in`}>
+          {/* Left Column: Image/Video Gallery */}
+          <ImageGallery images={mediaList} />
 
-        {/* Right Column: Title and Recipe details */}
-        <div className={styles.infoSection}>
-          <div className={styles.header}>
-            <div className={styles.meta}>
-              <div className={styles.metaItem}>
-                <Calendar size={16} style={{ color: 'var(--accent)' }} />
-                <span>{formattedDate}</span>
+          {/* Right Column: Title and Recipe details */}
+          <div className={styles.infoSection}>
+            <div className={styles.header}>
+              <div className={styles.meta}>
+                <div className={styles.metaItem}>
+                  <Calendar size={16} style={{ color: isShopAdmin ? '#D96B27' : 'var(--accent)' }} />
+                  <span>{formattedDate}</span>
+                </div>
+                {/* Chỉ hiển thị badge lượt xem nếu course_slug là NULL (bài public) */}
+                {!courseSlug && (
+                  <div className={`${styles.metaItem} ${styles.viewsBadge}`}>
+                    <Eye size={16} />
+                    <span>{post.views} lượt xem</span>
+                  </div>
+                )}
               </div>
-              {/* Chỉ hiển thị badge lượt xem nếu course_slug là NULL (bài public) */}
-              {!courseSlug && (
-                <div className={`${styles.metaItem} ${styles.viewsBadge}`}>
-                  <Eye size={16} />
-                  <span>{post.views} lượt xem</span>
+              <h1 className={styles.title} style={{ marginBottom: courseSlug ? '0.75rem' : '0' }}>{studentFacingTitle || post.title}</h1>
+              
+              {/* Hiển thị nút bài học gốc LMS nếu có course_slug */}
+              {courseSlug && (
+                <div className={styles.lmsLinkContainer}>
+                  <a 
+                    href={`https://www.daubepnho.store/lms.html?course=${courseSlug.trim()}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.lmsLinkButton}
+                  >
+                    <GraduationCap size={16} /> Bài học gốc phục vụ giảng dạy
+                  </a>
                 </div>
               )}
             </div>
-            <h1 className={styles.title} style={{ marginBottom: courseSlug ? '0.75rem' : '0' }}>{studentFacingTitle || post.title}</h1>
-            
-            {/* Hiển thị nút bài học gốc LMS nếu có course_slug */}
-            {courseSlug && (
-              <div className={styles.lmsLinkContainer}>
-                <a 
-                  href={`https://www.daubepnho.store/lms.html?course=${courseSlug.trim()}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.lmsLinkButton}
-                >
-                  <GraduationCap size={16} /> Bài học gốc phục vụ giảng dạy
-                </a>
-              </div>
-            )}
-          </div>
 
-          {/* Recipe Card */}
-          <RecipeCardWrapper title={studentFacingTitle || post.title} recipe={post.recipe} />
+            {/* Recipe Card */}
+            <RecipeCardWrapper title={studentFacingTitle || post.title} recipe={post.recipe} />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
-

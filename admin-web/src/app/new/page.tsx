@@ -82,6 +82,9 @@ export default function NewPostPage() {
     setSaving(true);
 
     try {
+      const isShopAdmin = typeof window !== 'undefined' && window.location.hostname.includes('shop');
+      const source = isShopAdmin ? 'shop_admin' : 'main_admin';
+
       const res = await fetch('/api/posts', {
         method: 'POST',
         headers: {
@@ -91,6 +94,7 @@ export default function NewPostPage() {
           title: title.trim(),
           recipe: recipe.trim(),
           images,
+          source,
         }),
       });
 

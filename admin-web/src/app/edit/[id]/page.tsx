@@ -123,6 +123,9 @@ export default function EditPostPage() {
     setSaving(true);
 
     try {
+      const isShopAdmin = typeof window !== 'undefined' && window.location.hostname.includes('shop');
+      const source = isShopAdmin ? 'shop_admin' : 'main_admin';
+
       const res = await fetch(`/api/posts/${id}`, {
         method: 'PUT',
         headers: {
@@ -133,6 +136,7 @@ export default function EditPostPage() {
           recipe: recipe.trim(),
           images,
           views: Number(views), // Support view count override
+          source,
         }),
       });
 

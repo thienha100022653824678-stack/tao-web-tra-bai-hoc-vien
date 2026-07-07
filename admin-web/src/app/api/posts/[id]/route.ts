@@ -62,13 +62,14 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
-    const { title, recipe, images, views } = await request.json();
+    const { title, recipe, images, views, source } = await request.json();
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (recipe !== undefined) updateData.recipe = recipe;
     if (images !== undefined) updateData.images = images;
     if (views !== undefined) updateData.views = Number(views);
+    if (source !== undefined) updateData.source = source;
 
     const { data: updatedPost, error } = await supabaseAdmin
       .from('posts')
