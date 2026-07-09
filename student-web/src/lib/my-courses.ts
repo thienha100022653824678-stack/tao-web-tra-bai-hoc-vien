@@ -9,6 +9,7 @@ type MyCourse = {
   status: CourseStatus;
   grantedAt?: string;
   images: string[];
+  driveStatus?: string;
 };
 
 const APPROVED_ORDER_STATUSES = new Set([
@@ -99,6 +100,7 @@ function mergeCourse(target: Map<string, MyCourse>, next: MyCourse) {
     status: statusRank[next.status] > statusRank[existing.status] ? next.status : existing.status,
     grantedAt: next.grantedAt || existing.grantedAt,
     images: next.images.length > 0 ? next.images : existing.images,
+    driveStatus: next.driveStatus || existing.driveStatus,
   });
 }
 
@@ -107,7 +109,7 @@ export async function getMyCourses(email: string) {
 
   const { data: portalEnrollments, error: enrollError } = await supabaseAdmin
     .from('student_enrollments')
-    .select('course_slug, created_at, status, course_name, thumbnail')
+    .select('course_slug, created_at, status, course_name, thumbnail, drive_permission_status')
     .eq('email', cleanEmail);
 
   if (enrollError) {
@@ -126,7 +128,7 @@ export async function getMyCourses(email: string) {
     const [{ data: enrollmentRows, error: lmsEnrollmentError }, { data: orderRows, error: lmsOrderError }] = await Promise.all([
       lmsSupabaseAdmin
         .from('student_enrollments')
-        .select('course_slug, status, created_at, updated_at')
+        .select('course_slug, status, created_at, updated_at, drive_permission_status')
         .eq('email', cleanEmail),
       lmsSupabaseAdmin
         .from('orders')
@@ -202,6 +204,7 @@ export async function getMyCourses(email: string) {
       status: ready ? 'approved_ready' : 'approved_waiting_content',
       grantedAt: enrollment.created_at || enrollment.updated_at,
       images: imagesFrom(post?.images).length > 0 ? imagesFrom(post?.images) : imagesFrom(course.image_url),
+      driveStatus: enrollment.drive_permission_status || undefined,
     });
   }
 
@@ -257,6 +260,7 @@ export async function getMyCourses(email: string) {
       images: imagesFrom(post?.images).length > 0
         ? imagesFrom(post?.images)
         : imagesFrom(course?.image_url || enrollment.thumbnail),
+      driveStatus: enrollment.drive_permission_status || undefined,
     });
   }
 
