@@ -8,6 +8,7 @@ import { verifyStudentSession, isAdminEmail } from '@/lib/session';
 import { ImageGallery, RecipeCardWrapper, ViewTracker } from './components';
 import LoginClient from './login-client';
 import MarkAsViewed from './mark-viewed';
+import OriginalLessonButton from './original-lesson-button';
 import styles from './post.module.css';
 
 interface PostPageProps {
@@ -267,16 +268,7 @@ export default async function PostDetail({ params }: PostPageProps) {
               
               {/* Hiển thị nút bài học gốc LMS nếu có course_slug */}
               {courseSlug && (
-                <div className={styles.lmsLinkContainer}>
-                  <a 
-                    href={`https://www.daubepnho.store/lms.html?course=${courseSlug.trim()}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.lmsLinkButton}
-                  >
-                    <GraduationCap size={16} /> Bài học gốc phục vụ giảng dạy
-                  </a>
-                </div>
+                <OriginalLessonButton courseSlug={courseSlug.trim()} postId={id} />
               )}
             </div>
 

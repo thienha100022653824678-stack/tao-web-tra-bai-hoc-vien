@@ -793,12 +793,17 @@
 .lmsLinkContainer {
   margin-top: 1rem;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .lmsLinkButton {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  border: 0;
+  cursor: pointer;
   padding: 0.65rem 1.25rem;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff !important;
@@ -814,6 +819,20 @@
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
   opacity: 0.95;
+}
+
+.lmsLinkButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
+.lmsLinkError {
+  color: #fca5a5;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 32rem;
 }
 
 /* =========================================================================
