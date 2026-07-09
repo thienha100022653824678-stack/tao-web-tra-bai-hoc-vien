@@ -109,7 +109,7 @@ export async function getMyCourses(email: string) {
 
   const { data: portalEnrollments, error: enrollError } = await supabaseAdmin
     .from('student_enrollments')
-    .select('course_slug, created_at, status, course_name, thumbnail, drive_permission_status')
+    .select('course_slug, created_at, status, course_name, thumbnail')
     .eq('email', cleanEmail);
 
   if (enrollError) {
@@ -260,7 +260,7 @@ export async function getMyCourses(email: string) {
       images: imagesFrom(post?.images).length > 0
         ? imagesFrom(post?.images)
         : imagesFrom(course?.image_url || enrollment.thumbnail),
-      driveStatus: enrollment.drive_permission_status || undefined,
+      driveStatus: undefined,
     });
   }
 
