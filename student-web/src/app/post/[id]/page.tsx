@@ -39,6 +39,131 @@ function isAuthorizedEnrollmentStatus(value: unknown): boolean {
   ]).has(normalizeStatus(value));
 }
 
+function normalizePlainText(value: unknown): string {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim();
+}
+
+function isPlaceholderRecipe(value: unknown): boolean {
+  const normalized = normalizePlainText(value).toLowerCase();
+  if (!normalized) return true;
+  return normalized.includes('nội dung bài viết sẽ sớm được cập nhật')
+    || normalized.includes('noi dung bai viet se som duoc cap nhat');
+}
+
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function extractGoogleDocId(url: string): string {
+  const match = url.match(/docs\.google\.com\/document\/d\/([^/?#]+)/i);
+  return match?.[1] || '';
+}
+
+function extractGoogleDriveFileId(url: string): string {
+  const patterns = [
+    /drive\.google\.com\/file\/d\/([^/?#]+)/i,
+    /drive\.google\.com\/open\?id=([^&#]+)/i,
+    /[?&]id=([^&#]+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+  }
+  return '';
+}
+
+async function fetchPublicRecipeText(recipeUrl: unknown): Promise<string> {
+  const url = String(recipeUrl || '').trim();
+  if (!url) return '';
+
+  const docId = extractGoogleDocId(url);
+  const fileId = extractGoogleDriveFileId(url);
+  const candidates = [
+    docId ? `https://docs.google.com/document/d/${encodeURIComponent(docId)}/export?format=txt` : '',
+    fileId ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download` : '',
+    fileId ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}` : '',
+    url,
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, {
+        redirect: 'follow',
+        headers: {
+          'User-Agent': 'student-web-recipe-sync/1.0',
+        },
+        cache: 'no-store',
+      });
+      if (!response.ok) continue;
+
+      const contentType = response.headers.get('content-type') || '';
+      const body = await response.text();
+      const text = contentType.includes('text/html') ? stripHtmlToText(body) : normalizePlainText(body);
+      if (text && !isPlaceholderRecipe(text)) return text;
+    } catch {
+      // Keep the post fallback if the LMS recipe source is private or unavailable.
+    }
+  }
+
+  return '';
+}
+
+async function loadLmsLessonRecipeFallback(courseSlug: unknown): Promise<string> {
+  const slug = String(courseSlug || '').trim();
+  if (!slug || !lmsSupabaseAdmin) return '';
+
+  const { data: lessons, error } = await lmsSupabaseAdmin
+    .from('lessons')
+    .select('title, description, recipe_url, is_section, active, status, lesson_no, sort_order')
+    .ilike('course_slug', slug)
+    .order('sort_order', { ascending: true })
+    .order('lesson_no', { ascending: true });
+
+  if (error || !lessons?.length) {
+    if (error) {
+      console.error('STUDENT_WEB_LMS_LESSON_FALLBACK_ERROR:', error);
+    }
+    return '';
+  }
+
+  const chunks: string[] = [];
+  for (const lesson of lessons as any[]) {
+    if (lesson?.is_section || lesson?.active === false || normalizeStatus(lesson?.status) === 'hidden') {
+      continue;
+    }
+
+    const description = normalizePlainText(lesson?.description);
+    if (description && !isPlaceholderRecipe(description)) {
+      chunks.push(description);
+      continue;
+    }
+
+    const recipeText = await fetchPublicRecipeText(lesson?.recipe_url);
+    if (recipeText) {
+      chunks.push(recipeText);
+    }
+  }
+
+  return chunks.join('\n\n').trim();
+}
+
 export default async function PostDetail({ params }: PostPageProps) {
   const { id } = await params;
 
@@ -226,6 +351,10 @@ export default async function PostDetail({ params }: PostPageProps) {
     mediaList.push(...cleanImages);
   }
 
+  const recipeForRender = isPlaceholderRecipe(post.recipe)
+    ? (await loadLmsLessonRecipeFallback(courseSlug)) || post.recipe
+    : post.recipe;
+
   const isShopAdmin = post.source === 'shop_admin' || (post.source !== 'main_admin' && post.course_slug !== null);
 
   return (
@@ -273,7 +402,7 @@ export default async function PostDetail({ params }: PostPageProps) {
             </div>
 
             {/* Recipe Card */}
-            <RecipeCardWrapper title={studentFacingTitle || post.title} recipe={post.recipe} />
+            <RecipeCardWrapper title={studentFacingTitle || post.title} recipe={recipeForRender} />
           </div>
         </div>
       </main>
