@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_paRRXhaTAqF6NnqbZBK6HsZP4zm3",
+      "name": "student-web",
+      "directory": "student-web",
+      "orgId": "team_cAthcmyw4079BDgelX0YjG9i"
+    }
+  ]
+}
