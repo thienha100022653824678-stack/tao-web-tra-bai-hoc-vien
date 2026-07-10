@@ -14,6 +14,7 @@ interface Course {
   grantedAt?: string;
   images?: string[];
   driveStatus?: string;
+  expectedStartDate?: string;
 }
 
 interface MyCoursesClientProps {
@@ -25,6 +26,21 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewedStatuses, setViewedStatuses] = useState<{ [key: string]: boolean }>({});
+
+  const formatExpectedStartDate = (value?: string) => {
+    const dateText = String(value || '').trim();
+    const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return '';
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  };
+
+  const getWaitingContentMessage = (value?: string) => {
+    const formattedDate = formatExpectedStartDate(value);
+    if (formattedDate) {
+      return `Khóa học của bạn đã được xét duyệt thành công. Lịch khai giảng dự kiến vào ngày ${formattedDate}. Mời bạn quay lại sau để học.`;
+    }
+    return 'Khóa học của bạn đã được xét duyệt thành công. Lịch khai giảng sẽ được cập nhật sớm. Mời bạn quay lại sau để học.';
+  };
 
   useEffect(() => {
     // Check viewed status for each course on client side
@@ -148,25 +164,6 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
                       {dateLabel}: <strong style={{ color: '#fff' }}>{formattedDate}</strong>
                     </div>
 
-                    {/* Google Drive Status Badge */}
-                    {course.status !== 'pending_order' && (
-                      <div style={{ fontSize: '0.85rem', color: '#9ca3af', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        Trạng thái Drive: 
-                        {(() => {
-                          const ds = String(course.driveStatus || '').trim().toLowerCase();
-                          if (ds === 'success') {
-                            return <span style={{ display: 'inline-block', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>🟢 Drive đã sẵn sàng</span>;
-                          } else if (ds === 'pending_retry' || ds === 'quota_limited') {
-                            return <span style={{ display: 'inline-block', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>🟡 Drive đang chờ cấp quyền</span>;
-                          } else if (ds === 'failed' || ds === 'error') {
-                            return <span style={{ display: 'inline-block', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>🔴 Drive lỗi, liên hệ admin</span>;
-                          } else {
-                            return <span style={{ display: 'inline-block', background: 'rgba(156, 163, 175, 0.15)', color: '#d1d5db', border: '1px solid rgba(156, 163, 175, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>⚪ Đang chờ xử lý</span>;
-                          }
-                        })()}
-                      </div>
-                    )}
-
                     {/* Status descriptions */}
                     {course.status === 'pending_order' && (
                       <div style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.1)', padding: '10px 12px', borderRadius: '10px', marginBottom: '16px' }}>
@@ -185,7 +182,7 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
                           🟠 Lớp đang chờ lên bài
                         </div>
                         <p style={{ fontSize: '0.8rem', color: '#d1d5db', margin: 0, lineHeight: '1.4' }}>
-                          Khóa học của bạn đã được xét duyệt. Hệ thống sẽ gửi Gmail khi lớp học hoàn tất.
+                          {getWaitingContentMessage(course.expectedStartDate)}
                         </p>
                       </div>
                     )}

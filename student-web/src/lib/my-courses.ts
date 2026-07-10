@@ -10,6 +10,7 @@ type MyCourse = {
   grantedAt?: string;
   images: string[];
   driveStatus?: string;
+  expectedStartDate?: string;
 };
 
 const APPROVED_ORDER_STATUSES = new Set([
@@ -79,6 +80,11 @@ function studentTitleFromCourse(course: any, fallback: unknown): string {
   return studentDisplayTitle || String(fallback || course?.title || course?.slug || '').trim();
 }
 
+function expectedStartDateFromCourse(course: any): string | undefined {
+  const value = String(course?.expected_start_date || '').trim();
+  return value || undefined;
+}
+
 function mergeCourse(target: Map<string, MyCourse>, next: MyCourse) {
   const existing = target.get(next.course_slug);
   if (!existing) {
@@ -101,6 +107,7 @@ function mergeCourse(target: Map<string, MyCourse>, next: MyCourse) {
     grantedAt: next.grantedAt || existing.grantedAt,
     images: next.images.length > 0 ? next.images : existing.images,
     driveStatus: next.driveStatus || existing.driveStatus,
+    expectedStartDate: next.expectedStartDate || existing.expectedStartDate,
   });
 }
 
@@ -169,7 +176,7 @@ export async function getMyCourses(email: string) {
   if (lmsSupabaseAdmin && allSlugs.length > 0) {
     const { data: courseRows, error: lmsCourseError } = await lmsSupabaseAdmin
       .from('courses')
-      .select('slug, title, raw_data, image_url, active, is_published')
+      .select('slug, title, raw_data, image_url, active, is_published, expected_start_date')
       .in('slug', allSlugs);
     if (lmsCourseError) {
       console.error('Error fetching LMS courses in my-courses helper:', lmsCourseError);
@@ -205,6 +212,7 @@ export async function getMyCourses(email: string) {
       grantedAt: enrollment.created_at || enrollment.updated_at,
       images: imagesFrom(post?.images).length > 0 ? imagesFrom(post?.images) : imagesFrom(course.image_url),
       driveStatus: enrollment.drive_permission_status || undefined,
+      expectedStartDate: expectedStartDateFromCourse(course),
     });
   }
 
@@ -226,6 +234,7 @@ export async function getMyCourses(email: string) {
       status,
       grantedAt: order.updated_at || order.created_at,
       images: imagesFrom(post?.images).length > 0 ? imagesFrom(post?.images) : imagesFrom(course.image_url),
+      expectedStartDate: expectedStartDateFromCourse(course),
     });
   }
 
@@ -261,6 +270,7 @@ export async function getMyCourses(email: string) {
         ? imagesFrom(post?.images)
         : imagesFrom(course?.image_url || enrollment.thumbnail),
       driveStatus: undefined,
+      expectedStartDate: course ? expectedStartDateFromCourse(course) : undefined,
     });
   }
 
