@@ -125,9 +125,68 @@ async function fetchPublicRecipeText(recipeUrl: unknown): Promise<string> {
   return '';
 }
 
-async function loadLmsLessonRecipeFallback(courseSlug: unknown): Promise<string> {
+async function fetchLmsCourseDataRecipeText(courseSlug: string, sessionToken: string): Promise<string> {
+  if (!courseSlug || !sessionToken) return '';
+
+  try {
+    const response = await fetch('https://www.daubepnho.store/api/lms/portal?endpoint=course-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course: courseSlug,
+        sessionToken,
+      }),
+      cache: 'no-store',
+    });
+    if (!response.ok) return '';
+
+    const data = await response.json();
+    const lessons = Array.isArray(data?.lessons) ? data.lessons : [];
+    const chunks = lessons
+      .filter((lesson: any) => !lesson?.isSection)
+      .map((lesson: any) => normalizePlainText(lesson?.recipeText || lesson?.description || ''))
+      .filter((text: string) => text && !isPlaceholderRecipe(text));
+
+    return chunks.join('\n\n').trim();
+  } catch {
+    return '';
+  }
+}
+
+async function fetchLmsPublicLessonRecipeText(courseSlug: string, lessonNo: unknown): Promise<string> {
+  const lesson = Number(lessonNo);
+  if (!courseSlug || !Number.isFinite(lesson)) return '';
+
+  try {
+    const response = await fetch('https://www.daubepnho.store/api/lms/portal?endpoint=public-lesson', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        course: courseSlug,
+        lesson,
+      }),
+      cache: 'no-store',
+    });
+    if (!response.ok) return '';
+
+    const data = await response.json();
+    const text = normalizePlainText(data?.lesson?.recipeText || data?.lesson?.description || '');
+    return text && !isPlaceholderRecipe(text) ? text : '';
+  } catch {
+    return '';
+  }
+}
+
+async function loadLmsLessonRecipeFallback(courseSlug: unknown, sessionToken = ''): Promise<string> {
   const slug = String(courseSlug || '').trim();
   if (!slug || !lmsSupabaseAdmin) return '';
+
+  const courseDataRecipe = await fetchLmsCourseDataRecipeText(slug, sessionToken);
+  if (courseDataRecipe) return courseDataRecipe;
 
   const { data: lessons, error } = await lmsSupabaseAdmin
     .from('lessons')
@@ -152,6 +211,12 @@ async function loadLmsLessonRecipeFallback(courseSlug: unknown): Promise<string>
     const description = normalizePlainText(lesson?.description);
     if (description && !isPlaceholderRecipe(description)) {
       chunks.push(description);
+      continue;
+    }
+
+    const lmsPublicText = await fetchLmsPublicLessonRecipeText(slug, lesson?.lesson_no);
+    if (lmsPublicText) {
+      chunks.push(lmsPublicText);
       continue;
     }
 
@@ -242,6 +307,7 @@ export default async function PostDetail({ params }: PostPageProps) {
   }
   let isAuthorized = true;
   let sessionEmail = '';
+  let studentSessionTokenForLms = '';
 
   if (courseSlug) {
     const cookieStore = await cookies();
@@ -262,6 +328,7 @@ export default async function PostDetail({ params }: PostPageProps) {
       // 2. Validate student session
       const token = cookieStore.get('course_session_token')?.value || '';
       const session = verifyStudentSession(token);
+      studentSessionTokenForLms = token;
 
       console.log('STUDENT_WEB_SESSION_VAL:', {
         hasToken: !!token,
@@ -352,7 +419,7 @@ export default async function PostDetail({ params }: PostPageProps) {
   }
 
   const recipeForRender = isPlaceholderRecipe(post.recipe)
-    ? (await loadLmsLessonRecipeFallback(courseSlug)) || post.recipe
+    ? (await loadLmsLessonRecipeFallback(courseSlug, studentSessionTokenForLms)) || post.recipe
     : post.recipe;
 
   const isShopAdmin = post.source === 'shop_admin' || (post.source !== 'main_admin' && post.course_slug !== null);
