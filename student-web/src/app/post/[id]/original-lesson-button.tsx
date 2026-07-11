@@ -9,6 +9,15 @@ interface OriginalLessonButtonProps {
   postId: string;
 }
 
+type LmsEntryTokenResponse = {
+  ok?: boolean;
+  url?: string;
+  error?: string;
+  code?: string;
+};
+
+const GENERIC_ENTRY_ERROR = 'Không tạo được liên kết vào lớp. Vui lòng đăng nhập đúng Gmail đã mua khóa học rồi thử lại.';
+
 export default function OriginalLessonButton({ courseSlug, postId }: OriginalLessonButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,7 +27,7 @@ export default function OriginalLessonButton({ courseSlug, postId }: OriginalLes
     const cleanPostId = postId.trim();
 
     if (!cleanCourseSlug || !cleanPostId) {
-      setError('Không tạo được liên kết vào lớp. Vui lòng đăng nhập đúng Gmail đã mua khóa học rồi thử lại.');
+      setError(GENERIC_ENTRY_ERROR);
       return;
     }
 
@@ -37,16 +46,16 @@ export default function OriginalLessonButton({ courseSlug, postId }: OriginalLes
         }),
       });
 
-      const data = await response.json().catch(() => null);
+      const data = await response.json().catch(() => null) as LmsEntryTokenResponse | null;
 
       if (!response.ok || !data?.ok || !data?.url) {
-        setError('Không tạo được liên kết vào lớp. Vui lòng đăng nhập đúng Gmail đã mua khóa học rồi thử lại.');
+        setError(data?.error || GENERIC_ENTRY_ERROR);
         return;
       }
 
       window.location.assign(data.url);
     } catch {
-      setError('Không tạo được liên kết vào lớp. Vui lòng đăng nhập đúng Gmail đã mua khóa học rồi thử lại.');
+      setError(GENERIC_ENTRY_ERROR);
     } finally {
       setIsLoading(false);
     }

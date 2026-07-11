@@ -47,6 +47,12 @@ export function hashToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
+export function hashOptionalValue(value?: string | null): string | null {
+  const cleanValue = String(value || '').trim();
+  if (!cleanValue) return null;
+  return crypto.createHash('sha256').update(cleanValue).digest('hex');
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -125,6 +131,67 @@ export async function touchStudentSession(studentSessionId: string): Promise<Stu
   return (data as StudentGuardSession | null) || null;
 }
 
+export async function markStudentSessionLoggedOut(params: {
+  email: string;
+  portalDeviceId?: string | null;
+  studentSessionId?: string | null;
+}): Promise<StudentGuardSession | null> {
+  const supabase = assertLmsSupabase();
+  const cleanEmail = normalizeEmail(params.email);
+  if (!cleanEmail) throw new Error('email is required');
+  if (!params.portalDeviceId && !params.studentSessionId) {
+    throw new Error('portalDeviceId or studentSessionId is required');
+  }
+
+  let query = supabase
+    .from('student_active_sessions')
+    .select('id,email,student_session_id,portal_device_id,status,last_seen_at')
+    .eq('email', cleanEmail)
+    .eq('status', ACTIVE_STUDENT_STATUS)
+    .limit(1);
+
+  if (params.studentSessionId) {
+    query = query.eq('student_session_id', params.studentSessionId);
+  } else if (params.portalDeviceId) {
+    query = query.eq('portal_device_id', params.portalDeviceId);
+  }
+
+  const existingRows = await throwIfSupabaseError(await query);
+  const existing = existingRows?.[0] as StudentGuardSession | undefined;
+  if (!existing) return null;
+
+  const logoutAt = nowIso();
+  const loggedOutSession = await throwIfSupabaseError(await supabase
+    .from('student_active_sessions')
+    .update({
+      status: 'logged_out',
+      logout_at: logoutAt,
+      updated_at: logoutAt,
+    })
+    .eq('student_session_id', existing.student_session_id)
+    .eq('status', ACTIVE_STUDENT_STATUS)
+    .select('id,email,student_session_id,portal_device_id,status,last_seen_at')
+    .maybeSingle());
+
+  await throwIfSupabaseError(await supabase
+    .from('lms_verified_sessions')
+    .update({
+      status: 'logged_out',
+      logout_at: logoutAt,
+      updated_at: logoutAt,
+    })
+    .eq('student_session_id', existing.student_session_id)
+    .eq('status', ACTIVE_STUDENT_STATUS));
+
+  await throwIfSupabaseError(await supabase
+    .from('lms_entry_tokens')
+    .update({ status: 'revoked' })
+    .eq('student_session_id', existing.student_session_id)
+    .eq('status', ACTIVE_ENTRY_TOKEN_STATUS));
+
+  return (loggedOutSession as StudentGuardSession | null) || existing;
+}
+
 export async function createStudentActiveSession(params: {
   email: string;
   portalDeviceId: string;
@@ -166,6 +233,66 @@ export async function ensureStudentSessionCompat(params: {
   }
 
   return createStudentActiveSession(params);
+}
+
+export async function ensureStudentSessionAtomic(params: {
+  email: string;
+  portalDeviceId: string;
+  ip?: string | null;
+  userAgent?: string | null;
+  deviceLabel?: string | null;
+}): Promise<StudentGuardSession> {
+  const supabase = assertLmsSupabase();
+  const cleanEmail = normalizeEmail(params.email);
+  if (!cleanEmail) throw new Error('email is required');
+  if (!params.portalDeviceId) throw new Error('portalDeviceId is required');
+
+  const newStudentSessionId = generateSessionId('student');
+  const rpcResult = await supabase.rpc('handle_student_session_login', {
+    p_email: cleanEmail,
+    p_portal_device_id: params.portalDeviceId,
+    p_new_student_session_id: newStudentSessionId,
+    p_device_hash: hashOptionalValue(params.portalDeviceId),
+    p_device_label: params.deviceLabel || null,
+    p_ip: params.ip || null,
+    p_ip_hash: hashOptionalValue(params.ip),
+    p_user_agent: params.userAgent || null,
+    p_conflict_policy: 'block',
+    p_idle_hours: getStudentSessionIdleHours(),
+  });
+
+  if (rpcResult.error) {
+    const message = String(rpcResult.error.message || '');
+    if (/function .*handle_student_session_login|schema cache|does not exist/i.test(message)) {
+      throw new Error('student_session_guard_not_ready');
+    }
+    throw rpcResult.error;
+  }
+
+  const data = (rpcResult.data || {}) as {
+    ok?: boolean;
+    action?: string;
+    reason?: string;
+    email?: string;
+    student_session_id?: string;
+    portal_device_id?: string;
+  };
+
+  if (!data.ok) {
+    const error = new Error(data.reason || 'student_session_blocked');
+    (error as Error & { code?: string; action?: string }).code = data.reason || 'student_session_blocked';
+    (error as Error & { code?: string; action?: string }).action = data.action || 'blocked';
+    throw error;
+  }
+
+  return {
+    id: '',
+    email: data.email || cleanEmail,
+    student_session_id: data.student_session_id || newStudentSessionId,
+    portal_device_id: data.portal_device_id || params.portalDeviceId,
+    status: ACTIVE_STUDENT_STATUS,
+    last_seen_at: nowIso(),
+  };
 }
 
 export async function createLmsEntryToken(params: {

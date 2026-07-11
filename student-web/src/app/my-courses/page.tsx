@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { verifyStudentSession } from '@/lib/session';
 import { getMyCourses } from '@/lib/my-courses';
+import { PORTAL_DEVICE_COOKIE, markStudentSessionLoggedOut } from '@/lib/session-guard';
 
 export const dynamic = 'force-dynamic';
 import LoginMyCourses from './login-my-courses';
@@ -31,6 +32,21 @@ export default async function MyCoursesPage() {
   const handleLogoutAction = async () => {
     'use server';
     const store = await cookies();
+    const actionToken = store.get('course_session_token')?.value || '';
+    const actionSession = verifyStudentSession(actionToken);
+    const actionPortalDeviceId = store.get(PORTAL_DEVICE_COOKIE)?.value || '';
+
+    if (actionSession && actionPortalDeviceId) {
+      try {
+        await markStudentSessionLoggedOut({
+          email: actionSession.email,
+          portalDeviceId: actionPortalDeviceId,
+        });
+      } catch {
+        // Still clear the cookie so the learner can sign in again.
+      }
+    }
+
     store.delete('course_session_token');
   };
 

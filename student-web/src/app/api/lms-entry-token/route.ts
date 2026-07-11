@@ -4,7 +4,7 @@ import { verifyStudentSession } from '@/lib/session';
 import {
   PORTAL_DEVICE_COOKIE,
   createLmsEntryToken,
-  ensureStudentSessionCompat,
+  ensureStudentSessionAtomic,
   generateDeviceId,
 } from '@/lib/session-guard';
 
@@ -42,8 +42,23 @@ function getRequestIp(request: NextRequest): string | null {
   return request.headers.get('x-real-ip');
 }
 
-function jsonError(message: string, status = 400) {
-  return NextResponse.json({ ok: false, error: message }, { status });
+function jsonError(message: string, status = 400, code?: string) {
+  return NextResponse.json({ ok: false, error: message, ...(code ? { code } : {}) }, { status });
+}
+
+function studentSessionError(error: unknown) {
+  const code = (error as Error & { code?: string })?.code || (error as Error)?.message || '';
+  if (code === 'student_session_guard_not_ready') {
+    return jsonError('Hệ thống bảo vệ phiên học chưa được kích hoạt đầy đủ. Vui lòng liên hệ Admin.', 503);
+  }
+  if (code === 'existing_active_session' || code === 'active_session_on_another_device') {
+    return jsonError(
+      'Tài khoản này đang được sử dụng để học trên một thiết bị khác. Vui lòng đăng xuất khỏi thiết bị cũ trước khi đăng nhập trên thiết bị này.',
+      409,
+      'active_session_on_another_device'
+    );
+  }
+  return jsonError('Không kiểm tra được phiên đăng nhập học viên. Vui lòng thử lại sau.', 500);
 }
 
 async function isEnrollmentAuthorized(email: string, courseSlug: string): Promise<boolean> {
@@ -129,12 +144,18 @@ export async function POST(request: NextRequest) {
     const ip = getRequestIp(request);
     const userAgent = request.headers.get('user-agent');
 
-    const studentGuardSession = await ensureStudentSessionCompat({
-      email: session.email,
-      portalDeviceId,
-      ip,
-      userAgent,
-    });
+    let studentGuardSession;
+    try {
+      studentGuardSession = await ensureStudentSessionAtomic({
+        email: session.email,
+        portalDeviceId,
+        ip,
+        userAgent,
+        deviceLabel: userAgent ? userAgent.slice(0, 160) : null,
+      });
+    } catch (error) {
+      return studentSessionError(error);
+    }
 
     const { rawToken } = await createLmsEntryToken({
       email: session.email,
@@ -146,7 +167,7 @@ export async function POST(request: NextRequest) {
       createdUserAgent: userAgent,
     });
 
-    const url = `${LMS_ENTRY_BASE_URL}?entry_token=${encodeURIComponent(rawToken)}`;
+    const url = `${LMS_ENTRY_BASE_URL}#entry_token=${encodeURIComponent(rawToken)}`;
     const response = NextResponse.json({ ok: true, url });
 
     if (!existingDeviceId) {
