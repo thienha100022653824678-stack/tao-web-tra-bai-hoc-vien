@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { LogOut, Search, GraduationCap, ArrowRight, BookOpen } from 'lucide-react';
 import styles from '../post/[id]/post.module.css';
 
@@ -26,6 +25,8 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewedStatuses, setViewedStatuses] = useState<{ [key: string]: boolean }>({});
+  const [navigatingCourseId, setNavigatingCourseId] = useState<string | null>(null);
+  const isNavigatingRef = React.useRef(false);
 
   const formatExpectedStartDate = (value?: string) => {
     const dateText = String(value || '').trim();
@@ -61,6 +62,14 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
     } catch (err) {
       console.error('Logout failed:', err);
     }
+  };
+
+  const openCoursePost = (courseId: string) => {
+    const postId = String(courseId || '').trim();
+    if (!postId || isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    setNavigatingCourseId(postId);
+    window.location.assign(`/post/${postId}`);
   };
 
   // Filter courses based on search query
@@ -212,9 +221,9 @@ export default function MyCoursesClient({ email, courses }: MyCoursesClientProps
                       </button>
                     )}
                     {course.status === 'approved_ready' && (
-                      <Link href={`/post/${course.id}`} className={styles.courseCardBtn} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#fff', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}>
+                      <button type="button" disabled={navigatingCourseId === course.id} onClick={() => openCoursePost(course.id)} className={styles.courseCardBtn} style={{ width: '100%', minHeight: '48px', padding: '12px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none', cursor: navigatingCourseId === course.id ? 'wait' : 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'rgba(34, 197, 94, 0.25)' }} aria-label={`Vào học ngay ${course.title}`}>
                         Vào học ngay <ArrowRight size={16} />
-                      </Link>
+                      </button>
                     )}
                   </div>
                 </div>
