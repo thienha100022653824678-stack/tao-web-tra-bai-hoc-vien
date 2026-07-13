@@ -8,6 +8,9 @@ const ACTIVE_ENTRY_TOKEN_STATUS = 'active';
 export const PORTAL_DEVICE_COOKIE = 'portal_device_id';
 export const DEFAULT_LMS_ENTRY_TOKEN_TTL_MINUTES = 30;
 export const DEFAULT_STUDENT_SESSION_IDLE_HOURS = 24;
+export const ACCOUNT_SHARING_SCHEMA_VERSION = 'v2';
+
+let missingAccountEventHashSecretWarned = false;
 
 function positiveNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -50,7 +53,34 @@ export function hashToken(rawToken: string): string {
 export function hashOptionalValue(value?: string | null): string | null {
   const cleanValue = String(value || '').trim();
   if (!cleanValue) return null;
-  return crypto.createHash('sha256').update(cleanValue).digest('hex');
+  const secret = String(
+    process.env.ACCOUNT_EVENT_HASH_SECRET ||
+    process.env.SESSION_GUARD_HASH_SECRET ||
+    ''
+  ).trim();
+  if (!secret) {
+    warnMissingAccountEventHashSecret();
+    return crypto.createHash('sha256').update(cleanValue).digest('hex');
+  }
+  return crypto.createHmac('sha256', secret).update(cleanValue).digest('hex');
+}
+
+export function warnMissingAccountEventHashSecret(): void {
+  if (missingAccountEventHashSecretWarned) return;
+  if (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production') {
+    console.warn('[account-sharing] ACCOUNT_EVENT_HASH_SECRET is not configured; falling back to legacy SHA-256 event hashes.');
+    missingAccountEventHashSecretWarned = true;
+  }
+}
+
+export function getAccountEventHashVersion(): string {
+  return String(
+    process.env.ACCOUNT_EVENT_HASH_SECRET ||
+    process.env.SESSION_GUARD_HASH_SECRET ||
+    ''
+  ).trim()
+    ? 'hmac_sha256_v2'
+    : 'sha256_v1';
 }
 
 export const ACCOUNT_SHARING_EVENT_TYPES = {
@@ -63,11 +93,31 @@ export const ACCOUNT_SHARING_EVENT_TYPES = {
 
 const ACCOUNT_SHARING_RISK_POINTS: Record<string, number> = {
   [ACCOUNT_SHARING_EVENT_TYPES.LOGIN_BLOCKED_OTHER_DEVICE]: 25,
-  [ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED]: 3,
+  [ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED]: 0,
   [ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_REUSED]: 0,
-  [ACCOUNT_SHARING_EVENT_TYPES.ENTRY_TOKEN_CREATED]: 1,
+  [ACCOUNT_SHARING_EVENT_TYPES.ENTRY_TOKEN_CREATED]: 0,
   [ACCOUNT_SHARING_EVENT_TYPES.LOGOUT]: 4,
 };
+
+function sanitizeEventMetadata(metadata?: Record<string, unknown>): Record<string, unknown> {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata).slice(0, 20)) {
+    const cleanKey = String(key || '').slice(0, 80);
+    if (!cleanKey) continue;
+    if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+      output[cleanKey] = value;
+    } else if (typeof value === 'string') {
+      output[cleanKey] = value.slice(0, 500);
+    }
+  }
+  return output;
+}
+
+function isMissingTelemetryColumn(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String((error as { message?: string })?.message || '');
+  return /column .* does not exist|relation .* does not exist|schema cache|PGRST204/i.test(message);
+}
 
 export async function logStudentDeviceEvent(params: {
   email: string;
@@ -86,35 +136,71 @@ export async function logStudentDeviceEvent(params: {
   userAgent?: string | null;
   reason?: string | null;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
+  correlationId?: string | null;
+  requestId?: string | null;
+  flowId?: string | null;
+  result?: string | null;
+  reasonCode?: string | null;
 }): Promise<void> {
   const supabase = assertLmsSupabase();
   const cleanEmail = normalizeEmail(params.email);
   const eventType = String(params.eventType || '').trim();
   if (!cleanEmail || !eventType) return;
 
-  const { error } = await supabase
+  const safeReason = params.reason || params.reasonCode || 'unspecified';
+  const safeReasonCode = params.reasonCode || params.reason || 'unspecified';
+
+  const payload: Record<string, unknown> = {
+    email: cleanEmail,
+    action: params.action || eventType,
+    event_type: eventType,
+    course_slug: params.courseSlug || null,
+    post_id: params.postId || null,
+    old_device_hash: params.oldDeviceHash || null,
+    new_device_hash: params.newDeviceHash || hashOptionalValue(params.portalDeviceId),
+    old_device_label: params.oldDeviceLabel || null,
+    new_device_label: params.newDeviceLabel || null,
+    old_student_session_id: params.oldStudentSessionId || null,
+    new_student_session_id: params.newStudentSessionId || null,
+    user_agent: params.userAgent || null,
+    ip_hash: hashOptionalValue(params.ip),
+    reason: safeReason,
+    event_source: 'portal',
+    risk_points: ACCOUNT_SHARING_RISK_POINTS[eventType] || 0,
+    metadata: sanitizeEventMetadata(params.metadata),
+    event_idempotency_key: params.idempotencyKey || null,
+    correlation_id: params.correlationId || null,
+    request_id: params.requestId || null,
+    flow_id: params.flowId || null,
+    result: params.result || null,
+    reason_code: safeReasonCode,
+    schema_version: ACCOUNT_SHARING_SCHEMA_VERSION,
+    hash_version: getAccountEventHashVersion(),
+  };
+
+  let { error } = await supabase
     .from('student_device_change_logs')
-    .insert({
-      email: cleanEmail,
-      action: params.action || eventType,
-      event_type: eventType,
-      course_slug: params.courseSlug || null,
-      post_id: params.postId || null,
-      old_device_hash: params.oldDeviceHash || null,
-      new_device_hash: params.newDeviceHash || hashOptionalValue(params.portalDeviceId),
-      old_device_label: params.oldDeviceLabel || null,
-      new_device_label: params.newDeviceLabel || null,
-      old_student_session_id: params.oldStudentSessionId || null,
-      new_student_session_id: params.newStudentSessionId || null,
-      user_agent: params.userAgent || null,
-      ip_hash: hashOptionalValue(params.ip),
-      reason: params.reason || null,
-      event_source: 'portal',
-      risk_points: ACCOUNT_SHARING_RISK_POINTS[eventType] || 0,
-      metadata: params.metadata || {},
-    });
+    .insert(payload);
+
+  if (error && isMissingTelemetryColumn(error)) {
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.correlation_id;
+    delete fallbackPayload.request_id;
+    delete fallbackPayload.flow_id;
+    delete fallbackPayload.result;
+    delete fallbackPayload.reason_code;
+    delete fallbackPayload.schema_version;
+    delete fallbackPayload.hash_version;
+    ({ error } = await supabase
+      .from('student_device_change_logs')
+      .insert(fallbackPayload));
+  }
 
   if (error) {
+    if ((error as { code?: string }).code === '23505' && params.idempotencyKey) {
+      return;
+    }
     console.warn('[account-sharing] Could not write portal event:', error.message);
   }
 }
@@ -264,7 +350,7 @@ export async function markStudentSessionLoggedOut(params: {
     .eq('student_session_id', existing.student_session_id)
     .eq('status', ACTIVE_ENTRY_TOKEN_STATUS));
 
-  void safeLogStudentDeviceEvent({
+  await safeLogStudentDeviceEvent({
     email: cleanEmail,
     eventType: ACCOUNT_SHARING_EVENT_TYPES.LOGOUT,
     oldDeviceHash: hashOptionalValue(existing.portal_device_id),
@@ -363,7 +449,7 @@ export async function ensureStudentSessionAtomic(params: {
   };
 
   if (!data.ok) {
-    void safeLogStudentDeviceEvent({
+    await safeLogStudentDeviceEvent({
       email: cleanEmail,
       eventType: ACCOUNT_SHARING_EVENT_TYPES.LOGIN_BLOCKED_OTHER_DEVICE,
       oldDeviceHash: hashOptionalValue(data.portal_device_id),
@@ -374,6 +460,9 @@ export async function ensureStudentSessionAtomic(params: {
       ip: params.ip || null,
       userAgent: params.userAgent || null,
       reason: data.reason || 'student_session_blocked',
+      reasonCode: data.reason || 'student_session_blocked',
+      result: 'blocked',
+      idempotencyKey: `login_blocked:${cleanEmail}:${hashOptionalValue(params.portalDeviceId) || 'unknown'}:${data.student_session_id || 'active'}`,
       metadata: {
         rpcAction: data.action || 'blocked',
       },
@@ -384,21 +473,25 @@ export async function ensureStudentSessionAtomic(params: {
     throw error;
   }
 
-  void safeLogStudentDeviceEvent({
-    email: data.email || cleanEmail,
-    eventType: data.action === 'reused'
-      ? ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_REUSED
-      : ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED,
-    newDeviceHash: hashOptionalValue(data.portal_device_id || params.portalDeviceId),
-    newDeviceLabel: params.deviceLabel || null,
-    newStudentSessionId: data.student_session_id || newStudentSessionId,
-    portalDeviceId: data.portal_device_id || params.portalDeviceId,
-    ip: params.ip || null,
-    userAgent: params.userAgent || null,
-    metadata: {
-      rpcAction: data.action || 'created',
-    },
-  });
+  if (data.action !== 'reused' || process.env.ACCOUNT_SHARING_LOG_SESSION_REUSE === '1') {
+    await safeLogStudentDeviceEvent({
+      email: data.email || cleanEmail,
+      eventType: data.action === 'reused'
+        ? ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_REUSED
+        : ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED,
+      newDeviceHash: hashOptionalValue(data.portal_device_id || params.portalDeviceId),
+      newDeviceLabel: params.deviceLabel || null,
+      newStudentSessionId: data.student_session_id || newStudentSessionId,
+      portalDeviceId: data.portal_device_id || params.portalDeviceId,
+      ip: params.ip || null,
+      userAgent: params.userAgent || null,
+      result: 'success',
+      idempotencyKey: `portal_session_${data.action || 'created'}:${data.student_session_id || newStudentSessionId}`,
+      metadata: {
+        rpcAction: data.action || 'created',
+      },
+    });
+  }
 
   return {
     id: '',
@@ -445,9 +538,9 @@ export async function createLmsEntryToken(params: {
       created_user_agent: params.createdUserAgent || null,
     })
     .select('id,email,student_session_id,portal_device_id,course_slug,post_id,status,expires_at')
-    .single());
+    .single()) as EntryTokenResult['entryToken'];
 
-  void safeLogStudentDeviceEvent({
+  await safeLogStudentDeviceEvent({
     email: cleanEmail,
     eventType: ACCOUNT_SHARING_EVENT_TYPES.ENTRY_TOKEN_CREATED,
     courseSlug: cleanCourseSlug,
@@ -457,6 +550,10 @@ export async function createLmsEntryToken(params: {
     portalDeviceId: params.portalDeviceId,
     ip: params.createdIp || null,
     userAgent: params.createdUserAgent || null,
+    result: 'success',
+    correlationId: data.id,
+    flowId: data.id,
+    idempotencyKey: `entry_token_created:${data.id}`,
   });
 
   return {
