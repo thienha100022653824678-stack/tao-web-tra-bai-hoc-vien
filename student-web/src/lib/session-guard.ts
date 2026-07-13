@@ -53,6 +53,81 @@ export function hashOptionalValue(value?: string | null): string | null {
   return crypto.createHash('sha256').update(cleanValue).digest('hex');
 }
 
+export const ACCOUNT_SHARING_EVENT_TYPES = {
+  PORTAL_SESSION_CREATED: 'portal_session_created',
+  PORTAL_SESSION_REUSED: 'portal_session_reused',
+  LOGIN_BLOCKED_OTHER_DEVICE: 'login_blocked_other_device',
+  ENTRY_TOKEN_CREATED: 'entry_token_created',
+  LOGOUT: 'logout',
+} as const;
+
+const ACCOUNT_SHARING_RISK_POINTS: Record<string, number> = {
+  [ACCOUNT_SHARING_EVENT_TYPES.LOGIN_BLOCKED_OTHER_DEVICE]: 25,
+  [ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED]: 3,
+  [ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_REUSED]: 0,
+  [ACCOUNT_SHARING_EVENT_TYPES.ENTRY_TOKEN_CREATED]: 1,
+  [ACCOUNT_SHARING_EVENT_TYPES.LOGOUT]: 4,
+};
+
+export async function logStudentDeviceEvent(params: {
+  email: string;
+  eventType: string;
+  action?: string;
+  courseSlug?: string | null;
+  postId?: string | null;
+  oldDeviceHash?: string | null;
+  newDeviceHash?: string | null;
+  oldDeviceLabel?: string | null;
+  newDeviceLabel?: string | null;
+  oldStudentSessionId?: string | null;
+  newStudentSessionId?: string | null;
+  portalDeviceId?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  reason?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const supabase = assertLmsSupabase();
+  const cleanEmail = normalizeEmail(params.email);
+  const eventType = String(params.eventType || '').trim();
+  if (!cleanEmail || !eventType) return;
+
+  const { error } = await supabase
+    .from('student_device_change_logs')
+    .insert({
+      email: cleanEmail,
+      action: params.action || eventType,
+      event_type: eventType,
+      course_slug: params.courseSlug || null,
+      post_id: params.postId || null,
+      old_device_hash: params.oldDeviceHash || null,
+      new_device_hash: params.newDeviceHash || hashOptionalValue(params.portalDeviceId),
+      old_device_label: params.oldDeviceLabel || null,
+      new_device_label: params.newDeviceLabel || null,
+      old_student_session_id: params.oldStudentSessionId || null,
+      new_student_session_id: params.newStudentSessionId || null,
+      user_agent: params.userAgent || null,
+      ip_hash: hashOptionalValue(params.ip),
+      reason: params.reason || null,
+      event_source: 'portal',
+      risk_points: ACCOUNT_SHARING_RISK_POINTS[eventType] || 0,
+      metadata: params.metadata || {},
+    });
+
+  if (error) {
+    console.warn('[account-sharing] Could not write portal event:', error.message);
+  }
+}
+
+async function safeLogStudentDeviceEvent(params: Parameters<typeof logStudentDeviceEvent>[0]): Promise<void> {
+  try {
+    await logStudentDeviceEvent(params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown_error';
+    console.warn('[account-sharing] Portal event skipped:', message);
+  }
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -189,6 +264,15 @@ export async function markStudentSessionLoggedOut(params: {
     .eq('student_session_id', existing.student_session_id)
     .eq('status', ACTIVE_ENTRY_TOKEN_STATUS));
 
+  void safeLogStudentDeviceEvent({
+    email: cleanEmail,
+    eventType: ACCOUNT_SHARING_EVENT_TYPES.LOGOUT,
+    oldDeviceHash: hashOptionalValue(existing.portal_device_id),
+    oldStudentSessionId: existing.student_session_id,
+    portalDeviceId: existing.portal_device_id,
+    reason: 'student_logout',
+  });
+
   return (loggedOutSession as StudentGuardSession | null) || existing;
 }
 
@@ -279,11 +363,42 @@ export async function ensureStudentSessionAtomic(params: {
   };
 
   if (!data.ok) {
+    void safeLogStudentDeviceEvent({
+      email: cleanEmail,
+      eventType: ACCOUNT_SHARING_EVENT_TYPES.LOGIN_BLOCKED_OTHER_DEVICE,
+      oldDeviceHash: hashOptionalValue(data.portal_device_id),
+      newDeviceHash: hashOptionalValue(params.portalDeviceId),
+      oldStudentSessionId: data.student_session_id || null,
+      portalDeviceId: params.portalDeviceId,
+      newDeviceLabel: params.deviceLabel || null,
+      ip: params.ip || null,
+      userAgent: params.userAgent || null,
+      reason: data.reason || 'student_session_blocked',
+      metadata: {
+        rpcAction: data.action || 'blocked',
+      },
+    });
     const error = new Error(data.reason || 'student_session_blocked');
     (error as Error & { code?: string; action?: string }).code = data.reason || 'student_session_blocked';
     (error as Error & { code?: string; action?: string }).action = data.action || 'blocked';
     throw error;
   }
+
+  void safeLogStudentDeviceEvent({
+    email: data.email || cleanEmail,
+    eventType: data.action === 'reused'
+      ? ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_REUSED
+      : ACCOUNT_SHARING_EVENT_TYPES.PORTAL_SESSION_CREATED,
+    newDeviceHash: hashOptionalValue(data.portal_device_id || params.portalDeviceId),
+    newDeviceLabel: params.deviceLabel || null,
+    newStudentSessionId: data.student_session_id || newStudentSessionId,
+    portalDeviceId: data.portal_device_id || params.portalDeviceId,
+    ip: params.ip || null,
+    userAgent: params.userAgent || null,
+    metadata: {
+      rpcAction: data.action || 'created',
+    },
+  });
 
   return {
     id: '',
@@ -331,6 +446,18 @@ export async function createLmsEntryToken(params: {
     })
     .select('id,email,student_session_id,portal_device_id,course_slug,post_id,status,expires_at')
     .single());
+
+  void safeLogStudentDeviceEvent({
+    email: cleanEmail,
+    eventType: ACCOUNT_SHARING_EVENT_TYPES.ENTRY_TOKEN_CREATED,
+    courseSlug: cleanCourseSlug,
+    postId: params.postId || null,
+    newDeviceHash: hashOptionalValue(params.portalDeviceId),
+    newStudentSessionId: params.studentSessionId,
+    portalDeviceId: params.portalDeviceId,
+    ip: params.createdIp || null,
+    userAgent: params.createdUserAgent || null,
+  });
 
   return {
     rawToken,
