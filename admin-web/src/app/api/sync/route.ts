@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { warmRuntimeConfig } from '@/lib/v2-runtime-controller';
 
 export async function POST(request: NextRequest) {
-  // Verify sync secret
+  // Verify sync secret FIRST — do not warm the runtime cache (which issues a
+  // site_config SELECT against DB B) before the request is authenticated.
+  // Warming before the 401 would let unauthenticated traffic trigger DB B
+  // reads. The 401 stays fail-closed when INTERNAL_SYNC_SECRET is unset.
   const syncSecret = request.headers.get('x-sync-secret');
   const systemSecret = process.env.INTERNAL_SYNC_SECRET;
 
@@ -12,6 +16,12 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  // Authenticated only: warm the V2 runtime cache so Admin reports the same
+  // active mode as the rest of the platform (LMS/Portal/Shop) during this
+  // sync. Safe to call on every request — concurrent calls coalesce into
+  // one DB read; never throws.
+  await warmRuntimeConfig();
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';

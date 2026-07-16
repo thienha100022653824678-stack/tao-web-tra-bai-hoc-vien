@@ -2,8 +2,23 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { password } = await request.json();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const body = await request.json().catch(() => null);
+    const { password } = (body || {}) as { password?: string };
+
+    // Fail-closed: no weak 'admin123' default. When ADMIN_PASSWORD is not set
+    // the system is not configured to accept logins — return a 500 config
+    // error (mirrors Shop's check-auth posture) instead of silently letting
+    // the literal 'admin123' through.
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminPassword) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Hệ thống chưa cấu hình mật khẩu quản trị (ADMIN_PASSWORD).',
+        },
+        { status: 500 }
+      );
+    }
 
     if (password !== adminPassword) {
       return NextResponse.json(
@@ -31,10 +46,11 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error('Login API error:', err);
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: message },
       { status: 500 }
     );
   }
