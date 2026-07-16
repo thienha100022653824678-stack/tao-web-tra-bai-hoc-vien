@@ -32,7 +32,8 @@ import {
   isV2ActiveCached,
   setActiveMode,
   setKillSwitch,
-  _resetRuntimeControllerCache
+  _resetRuntimeControllerCache,
+  _internals
 } from '../src/lib/v2-runtime-controller';
 import { _resetForTest as resetCache } from '../src/lib/v2-runtime-cache';
 
@@ -169,5 +170,25 @@ describe('v2-runtime-controller', () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.killSwitch).toBe(true);
     expect(isV2ActiveCached()).toBe(false);
+  });
+
+  // jsonb boolean regression: Supabase returns a JS boolean (not a string)
+  // when a site_config row holds a jsonb boolean — e.g. v2_kill_switch
+  // written via setKillSwitch(true). Before the fix, configRowToValue only
+  // matched string + object-envelope-string shapes, so a bare `true`/`false`
+  // fell through and returned null → parseBooleanFlag(null) → false → the
+  // kill switch silently no-oped (a DB row that should force V1 left V2
+  // active). Must round-trip to the bare boolean.
+  it('configRowToValue: jsonb boolean round-trips (bare + envelope)', () => {
+    const { configRowToValue } = _internals;
+    // Rows are passed as SiteConfigRow (with a key); the parser only looks at
+    // `.value`, which may be a jsonb boolean or an envelope holding one.
+    const row = (value: unknown) => ({ key: 'v2_kill_switch', value });
+    expect(configRowToValue(row(true))).toBe(true);
+    expect(configRowToValue(row(false))).toBe(false);
+    expect(configRowToValue(row({ val: true }))).toBe(true);
+    expect(configRowToValue(row({ value: false }))).toBe(false);
+    // boolean takes precedence over a string in the same envelope
+    expect(configRowToValue(row({ val: true, value: 'v2' }))).toBe(true);
   });
 });
