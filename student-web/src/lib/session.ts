@@ -15,26 +15,83 @@ export function isAdminEmail(email: string): boolean {
   return getAdminEmails().includes(normalizeEmail(email));
 }
 
-function sessionSecrets(): string[] {
-  return [
-    process.env.SESSION_SECRET,
-    process.env.GOOGLE_CLIENT_ID,
-    'fallback-session-secret'
-  ]
-    .filter(Boolean)
-    .map(s => String(s).trim())
-    .filter((s, idx, self) => s && self.indexOf(s) === idx);
+// AuthSecretError intentionally does NOT include the secret value.
+// It exposes only the variable name(s) so operators know what to configure.
+// Mirrors the LMS RP-1 `utils/lms-secrets.js` fail-closed pattern.
+export class AuthSecretError extends Error {
+  readonly code = 'auth_misconfigured';
+  readonly exposesValues = false;
+  readonly missingEnvVars: string[];
+  constructor(message: string, missingEnvVars: string[] = []) {
+    super(message);
+    this.name = 'AuthSecretError';
+    this.missingEnvVars = Array.isArray(missingEnvVars) ? missingEnvVars.slice() : [];
+  }
+
+  toClientJson() {
+    return {
+      ok: false,
+      code: this.code,
+      error: 'Authentication is temporarily unavailable. Please retry later.',
+      missingEnvVars: this.missingEnvVars
+    };
+  }
 }
 
-function sessionSecret(): string {
-  return sessionSecrets()[0] || 'fallback-session-secret';
+const SESSION_SECRET_ENV = 'SESSION_SECRET';
+
+// Modules that intentionally bypass fail-closed (e.g. tests). Set
+// LMS_RP1_ALLOW_INSECURE_LOCAL=1 to allow missing required secrets during
+// development. In production the env var must be unset OR explicitly set to
+// "1" AND NODE_ENV must not be "production".
+function isLocalBypassAllowed(): boolean {
+  const flag = String(process.env.LMS_RP1_ALLOW_INSECURE_LOCAL || '').trim();
+  if (flag !== '1') return false;
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') return false;
+  if (String(process.env.VERCEL_ENV || '').toLowerCase() === 'production') return false;
+  return true;
+}
+
+function readSecret(name: string): string {
+  const value = process.env[name];
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+// Get the primary session signing secret. Throws AuthSecretError (fail-closed)
+// when SESSION_SECRET is missing in production runtime — NEVER silently falls
+// back to a literal. In local-only bypass mode, returns a clearly-marked
+// synthetic value so any signature generated here is recognizable as such.
+function getSessionSecret(): string {
+  const value = readSecret(SESSION_SECRET_ENV);
+  if (value) return value;
+  if (isLocalBypassAllowed()) {
+    return `__local_bypass__${SESSION_SECRET_ENV}__not_for_production__`;
+  }
+  throw new AuthSecretError(
+    `Missing required auth configuration: ${SESSION_SECRET_ENV}`,
+    [SESSION_SECRET_ENV]
+  );
+}
+
+// Secondary verification secrets. SESSION_SECRET is the primary signer and
+// the only one that can fail-closed; GOOGLE_CLIENT_ID is kept ONLY as a
+// legacy verification secret so tokens signed before the fail-closed
+// cutover (or signed on an instance that still had it configured) remain
+// verifiable. A missing SESSION_SECRET still throws via getSessionSecret().
+function sessionVerifySecrets(): string[] {
+  const primary = getSessionSecret();
+  const secondary = readSecret('GOOGLE_CLIENT_ID');
+  const secrets = [primary];
+  if (secondary) secrets.push(secondary);
+  return Array.from(new Set(secrets));
 }
 
 function base64url(input: string): string {
   return Buffer.from(input).toString('base64url');
 }
 
-function signPayload(payloadBase64: string, secret: string = sessionSecret()): string {
+function signPayload(payloadBase64: string, secret: string = getSessionSecret()): string {
   return crypto
     .createHmac('sha256', secret)
     .update(payloadBase64)
@@ -47,7 +104,12 @@ export function verifyStudentSession(token: string) {
   if (parts.length !== 2) return null;
 
   const [payloadBase64, signature] = parts;
-  const validSignature = sessionSecrets().some(secret => {
+  // Fail-closed: getSessionSecret() (via sessionVerifySecrets) throws
+  // AuthSecretError when SESSION_SECRET is unset in production. We do NOT
+  // catch it here — the caller (route handler) surfaces a 500/config error
+  // rather than silently accepting a literal-signed token.
+  const secrets = sessionVerifySecrets();
+  const validSignature = secrets.some(secret => {
     const expectedSignature = signPayload(payloadBase64, secret);
     try {
       const a = Buffer.from(signature);

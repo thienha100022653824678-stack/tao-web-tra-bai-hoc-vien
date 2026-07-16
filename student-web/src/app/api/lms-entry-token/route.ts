@@ -1,14 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lmsSupabaseAdmin, supabaseAdmin } from '@/lib/supabase';
-import { verifyStudentSession } from '@/lib/session';
+import { verifyStudentSession, AuthSecretError } from '@/lib/session';
 import {
   PORTAL_DEVICE_COOKIE,
   createLmsEntryToken,
   ensureStudentSessionAtomic,
+  ensureStudentSessionCompat,
   generateDeviceId,
 } from '@/lib/session-guard';
+import { warmRuntimeConfig } from '@/lib/v2-runtime-controller';
+import { isV2GlobalOneDeviceEnabled } from '@/lib/v2-flags';
 
-const LMS_ENTRY_BASE_URL = 'https://www.daubepnho.store/lms.html';
+// LMS entry URL base. Env-overridable so preview/staging deploys can point at
+// a different LMS host without a code change; the default preserves the
+// existing V1 behavior exactly when the env is unset. Read lazily at request
+// time (not module-load) so a runtime env change takes effect without a
+// cold start.
+const DEFAULT_LMS_ENTRY_BASE_URL = 'https://www.daubepnho.store/lms.html';
+function getLmsEntryBaseUrl(): string {
+  return process.env.LMS_ENTRY_BASE_URL || DEFAULT_LMS_ENTRY_BASE_URL;
+}
 
 const ACTIVE_ENROLLMENT_STATUSES = new Set([
   'active',
@@ -115,6 +126,12 @@ export async function POST(request: NextRequest) {
       return jsonError('Chưa cấu hình kết nối LMS. Vui lòng liên hệ Admin.', 500);
     }
 
+    // Warm the V2 runtime cache once at the start of the request so the
+    // synchronous gate (isV2GlobalOneDeviceEnabled) reflects the current
+    // site_config mode for the rest of the invocation. Safe to call every
+    // request — concurrent calls coalesce into one DB read. Never throws.
+    await warmRuntimeConfig();
+
     const sessionToken = request.cookies.get('course_session_token')?.value || '';
     const session = verifyStudentSession(sessionToken);
     if (!session) {
@@ -146,13 +163,32 @@ export async function POST(request: NextRequest) {
 
     let studentGuardSession;
     try {
-      studentGuardSession = await ensureStudentSessionAtomic({
-        email: session.email,
-        portalDeviceId,
-        ip,
-        userAgent,
-        deviceLabel: userAgent ? userAgent.slice(0, 160) : null,
-      });
+      // One-device routing — THE switch port:
+      //   - V2 + V2_GLOBAL_ONE_DEVICE_ENABLED → atomic block path
+      //     (ensureStudentSessionAtomic, RPC handle_student_session_login
+      //     with p_conflict_policy:'block'). Block → 409
+      //     active_session_on_another_device (preserved below).
+      //   - V1 (or flag off, or kill switch on) → compat reuse path
+      //     (ensureStudentSessionCompat): reuse latest active session, no
+      //     blocking, no RPC. This preserves V1 behavior exactly.
+      // The gate is restrict-only + fail-open-on-cold, so when site_config
+      // is v1 (or lmsSupabaseAdmin not configured → fail-closed v1) the
+      // compat path is selected regardless of the env flag.
+      const useAtomicBlock = isV2GlobalOneDeviceEnabled();
+      studentGuardSession = await (useAtomicBlock
+        ? ensureStudentSessionAtomic({
+            email: session.email,
+            portalDeviceId,
+            ip,
+            userAgent,
+            deviceLabel: userAgent ? userAgent.slice(0, 160) : null,
+          })
+        : ensureStudentSessionCompat({
+            email: session.email,
+            portalDeviceId,
+            ip,
+            userAgent,
+          }));
     } catch (error) {
       return studentSessionError(error);
     }
@@ -167,7 +203,7 @@ export async function POST(request: NextRequest) {
       createdUserAgent: userAgent,
     });
 
-    const url = `${LMS_ENTRY_BASE_URL}#entry_token=${encodeURIComponent(rawToken)}`;
+    const url = `${getLmsEntryBaseUrl()}#entry_token=${encodeURIComponent(rawToken)}`;
     const response = NextResponse.json({ ok: true, url });
 
     if (!existingDeviceId) {
@@ -181,7 +217,14 @@ export async function POST(request: NextRequest) {
     }
 
     return response;
-  } catch {
+  } catch (error) {
+    // Fail-closed: a missing SESSION_SECRET throws AuthSecretError during
+    // verifyStudentSession. Surface it as a 500 with the configured client
+    // message (which never includes the secret value) instead of swallowing
+    // it into the generic 500, so the misconfiguration is visible.
+    if (error instanceof AuthSecretError) {
+      return NextResponse.json(error.toClientJson(), { status: 500 });
+    }
     return jsonError('Không tạo được link vào học. Vui lòng thử lại sau.', 500);
   }
 }

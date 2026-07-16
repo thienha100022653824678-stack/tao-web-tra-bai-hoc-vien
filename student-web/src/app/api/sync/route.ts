@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { warmRuntimeConfig } from '@/lib/v2-runtime-controller';
 
 const PORTAL_RECIPE_PLACEHOLDER = 'noi dung bai viet se som duoc cap nhat boi giang vien';
 const MIN_REAL_RECIPE_CHARS = 40;
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     );
   }
+
+  // Warm the V2 runtime cache once at the start of the request. The sync
+  // route self-gates on INTERNAL_SYNC_SECRET (above) and does not read V2
+  // flags today, but warming keeps the in-process cache fresh so any
+  // downstream V2-aware helper sees the current site_config mode. Safe to
+  // call every request — concurrent calls coalesce into one DB read. Never
+  // throws. No middleware is used (the Portal has none); per-route warm is
+  // sufficient and avoids interfering with this route's self-gating.
+  await warmRuntimeConfig();
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
