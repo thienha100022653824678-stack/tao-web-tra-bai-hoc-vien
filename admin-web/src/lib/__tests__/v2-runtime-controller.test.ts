@@ -281,3 +281,23 @@ describe('v2-runtime-controller — normalizeModeToken', () => {
     expect(_internals.normalizeModeToken(undefined)).toBe(null);
   });
 });
+
+// jsonb boolean regression: Supabase returns a JS boolean (not a string)
+// when a site_config row holds a jsonb boolean — e.g. v2_kill_switch
+// written via setKillSwitch(true). Before the fix, configRowToValue only
+// matched string + object-envelope-string shapes, so a bare `true`/`false`
+// fell through and returned null → parseBooleanFlag(null) → false → the
+// kill switch silently no-oped (a DB row that should force V1 left V2
+// active). Must round-trip to the bare boolean.
+describe('v2-runtime-controller — configRowToValue jsonb boolean', () => {
+  it('round-trips a bare boolean and an envelope-wrapped boolean', () => {
+    const { configRowToValue } = _internals;
+    const row = (value: unknown) => ({ value });
+    expect(configRowToValue(row(true))).toBe(true);
+    expect(configRowToValue(row(false))).toBe(false);
+    expect(configRowToValue(row({ val: true }))).toBe(true);
+    expect(configRowToValue(row({ value: false }))).toBe(false);
+    // boolean takes precedence over a string in the same envelope
+    expect(configRowToValue(row({ val: true, value: 'v2' }))).toBe(true);
+  });
+});

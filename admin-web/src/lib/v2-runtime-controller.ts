@@ -82,13 +82,23 @@ function resolveEnvOverride(): RuntimeSnapshot | null {
   return null;
 }
 
-function configRowToValue(row: { value?: unknown } | null | undefined): string | null {
+function configRowToValue(row: { value?: unknown } | null | undefined): string | boolean | null {
   if (!row || row.value === undefined || row.value === null) return null;
   const v = row.value as unknown;
+  // jsonb boolean (e.g. v2_kill_switch written as `true`/`false`). Must be
+  // handled BEFORE the object-envelope branch, and returned as-is so
+  // parseBooleanFlag(true) → true. Without this, a jsonb `true` fell through
+  // to `null` and the kill switch silently no-oped.
+  if (typeof v === 'boolean') return v;
   if (typeof v === 'string') return v;
   if (typeof v === 'object' && v !== null) {
     const obj = v as { val?: unknown; value?: unknown };
+    // Object envelope {val: ...} / {value: ...}. Defend against a boolean
+    // inside the envelope too (e.g. {val: true}) so the kill switch
+    // round-trips either way.
+    if (typeof obj.val === 'boolean') return obj.val;
     if (typeof obj.val === 'string') return obj.val;
+    if (typeof obj.value === 'boolean') return obj.value;
     if (typeof obj.value === 'string') return obj.value;
   }
   return null;
